@@ -2,4 +2,10 @@
 <resources>
 
     <style name="Theme.SpendWise" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.SpendWise.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/spendwise_splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.SpendWise</item>
+    </style>
 </resources>
