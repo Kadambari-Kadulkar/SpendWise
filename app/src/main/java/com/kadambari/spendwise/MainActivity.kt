@@ -24,7 +24,9 @@ import androidx.navigation.compose.rememberNavController
 import com.kadambari.spendwise.presentation.designsystem.theme.SpendWiseTheme
 import com.kadambari.spendwise.presentation.navigation.SpendWiseNavHost
 import com.kadambari.spendwise.presentation.navigation.bottomNavItems
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
