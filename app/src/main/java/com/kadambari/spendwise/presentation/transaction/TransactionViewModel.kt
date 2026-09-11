@@ -45,7 +45,9 @@ class TransactionViewModel @Inject constructor(
     private val zoneId: ZoneId,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(TransactionUiState())
+    private val _uiState = MutableStateFlow(
+        TransactionUiState(maxSelectableDate = today()),
+    )
     val uiState: StateFlow<TransactionUiState> = _uiState.asStateFlow()
 
     private val _effects = MutableSharedFlow<TransactionUiEffect>()
@@ -104,7 +106,9 @@ class TransactionViewModel @Inject constructor(
                 _uiState.update { current ->
                     current.copy(
                         isListLoading = false,
-                        listError = operationError("Unable to load transactions."),
+                        listError = operationError(
+                            "Couldn't load your transactions. Please try again.",
+                        ),
                     )
                 }
             }
@@ -435,9 +439,9 @@ class TransactionViewModel @Inject constructor(
 
         val money = try {
             Money.fromDecimal(decimalAmount, currencyCode)
-        } catch (exception: DomainValidationException) {
+        } catch (_: DomainValidationException) {
             return DraftBuildResult.Invalid(
-                copy(amountError = exception.message ?: "Enter a valid amount."),
+                copy(amountError = "Enter a valid amount."),
             )
         }
 
@@ -448,9 +452,9 @@ class TransactionViewModel @Inject constructor(
 
         val typedCategoryId = try {
             CategoryId.of(rawCategoryId)
-        } catch (exception: DomainValidationException) {
+        } catch (_: DomainValidationException) {
             return DraftBuildResult.Invalid(
-                copy(categoryError = exception.message ?: "Select a valid category."),
+                copy(categoryError = "Select a valid category."),
             )
         }
 
@@ -468,9 +472,10 @@ class TransactionViewModel @Inject constructor(
         )
     }
 
-    private fun validationError(exception: DomainValidationException): TransactionUiError =
+    private fun validationError(ex: DomainValidationException,
+    ): TransactionUiError =
         TransactionUiError(
-            message = exception.message ?: "Please check the transaction details.",
+            message = "Please check the transaction details.",
             kind = TransactionUiErrorKind.VALIDATION,
         )
 

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import com.kadambari.spendwise.presentation.transaction.TransactionRoute
 
 @Composable
 fun SpendWiseNavHost(
@@ -24,7 +25,7 @@ fun SpendWiseNavHost(
             DashboardScreen()
         }
         composable(Screen.Transactions.route) {
-            TransactionScreen()
+            TransactionRoute()
         }
         composable(Screen.Analytics.route) {
             AnalyticsScreen()
@@ -42,13 +43,6 @@ fun SpendWiseNavHost(
 fun DashboardScreen() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text("Dashboard")
-    }
-}
-
-@Composable
-fun TransactionScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Transactions")
     }
 }
 

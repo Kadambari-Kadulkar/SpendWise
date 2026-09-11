@@ -102,6 +102,10 @@ class TransactionViewModelTest {
 
         assertFalse(viewModel.uiState.value.isListLoading)
         assertEquals(TransactionUiErrorKind.OPERATION, viewModel.uiState.value.listError?.kind)
+        assertEquals(
+            "Couldn't load your transactions. Please try again.",
+            viewModel.uiState.value.listError?.message,
+        )
 
         repository.observedTransactions.value = listOf(transaction)
         viewModel.onEvent(TransactionUiEvent.RetryList)
@@ -125,7 +129,27 @@ class TransactionViewModelTest {
         assertEquals(TransactionType.EXPENSE, form.type)
         assertEquals(CurrencyCatalogue.GBP.code, form.currencyCode)
         assertEquals(ADD_TODAY, form.date)
+        assertEquals(ADD_TODAY, viewModel.uiState.value.maxSelectableDate)
         assertNull(form.noteError)
+    }
+
+    @Test
+    fun `max selectable date uses the injected clock and zone`() = runTest {
+        val losAngelesZone = ZoneId.of("America/Los_Angeles")
+        val clock = Clock.fixed(
+            Instant.parse("2026-09-05T00:30:00Z"),
+            losAngelesZone,
+        )
+        val viewModel = createViewModel(
+            repository = FakeTransactionRepository(),
+            clock = clock,
+            zoneId = losAngelesZone,
+        )
+
+        assertEquals(
+            LocalDate.of(2026, 9, 4),
+            viewModel.uiState.value.maxSelectableDate,
+        )
     }
 
     @Test
@@ -404,14 +428,15 @@ class TransactionViewModelTest {
     private fun createViewModel(
         repository: FakeTransactionRepository,
         clock: Clock = Clock.fixed(ADD_INSTANT, LONDON_ZONE),
+        zoneId: ZoneId = LONDON_ZONE,
     ): TransactionViewModel = TransactionViewModel(
         getTransactionsUseCase = GetTransactionsUseCase(repository),
         getTransactionUseCase = GetTransactionUseCase(repository),
-        addTransactionUseCase = AddTransactionUseCase(repository, clock, LONDON_ZONE),
-        updateTransactionUseCase = UpdateTransactionUseCase(repository, clock, LONDON_ZONE),
+        addTransactionUseCase = AddTransactionUseCase(repository, clock, zoneId),
+        updateTransactionUseCase = UpdateTransactionUseCase(repository, clock, zoneId),
         deleteTransactionUseCase = DeleteTransactionUseCase(repository),
         clock = clock,
-        zoneId = LONDON_ZONE,
+        zoneId = zoneId,
     )
 
     private fun expenseTransaction(

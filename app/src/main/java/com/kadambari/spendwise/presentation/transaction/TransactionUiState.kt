@@ -15,6 +15,11 @@ data class TransactionUiState(
     val transactions: List<TransactionListItemUiModel> = emptyList(),
     val isListLoading: Boolean = true,
     val listError: TransactionUiError? = null,
+    /**
+     * Current calendar date derived from the ViewModel's Clock and ZoneId.
+     * This is the maximum valid transaction date for the future date picker.
+     */
+    val maxSelectableDate: LocalDate? = null,
     val form: TransactionFormUiState? = null,
     val isSaving: Boolean = false,
     val formError: TransactionUiError? = null,
