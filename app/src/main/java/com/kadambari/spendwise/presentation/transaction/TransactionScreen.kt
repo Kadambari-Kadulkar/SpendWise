@@ -58,8 +58,30 @@ private const val EMPTY_SUPPORTING_TEXT =
     "Add your first income or expense to start tracking your money."
 
 @Composable
+fun TransactionListRoute(
+    viewModel: TransactionViewModel,
+    onNavigateToAdd: () -> Unit,
+    onNavigateToEdit: (String) -> Unit,
+) {
+    val uiState by viewModel.uiState.collectAsState()
+
+    TransactionListScreen(
+        uiState = uiState,
+        onEvent = { event ->
+            when (event) {
+                TransactionUiEvent.StartAdd -> onNavigateToAdd()
+                is TransactionUiEvent.StartEdit -> onNavigateToEdit(event.transactionId)
+                else -> viewModel.onEvent(event)
+            }
+        },
+    )
+}
+
+@Composable
 fun TransactionRoute(
     viewModel: TransactionViewModel = hiltViewModel(),
+    onNavigateToAdd: () -> Unit = {},
+    onNavigateToEdit: (String) -> Unit = {},
     onEffect: (TransactionUiEffect) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -72,7 +94,13 @@ fun TransactionRoute(
 
     TransactionListScreen(
         uiState = uiState,
-        onEvent = viewModel::onEvent,
+        onEvent = { event ->
+            when (event) {
+                TransactionUiEvent.StartAdd -> onNavigateToAdd()
+                is TransactionUiEvent.StartEdit -> onNavigateToEdit(event.transactionId)
+                else -> viewModel.onEvent(event)
+            }
+        },
     )
 }
 

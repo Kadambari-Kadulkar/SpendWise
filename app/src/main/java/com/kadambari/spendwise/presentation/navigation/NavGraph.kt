@@ -6,10 +6,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.remember
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.kadambari.spendwise.presentation.transaction.TransactionRoute
+import androidx.navigation.compose.navigation
+import androidx.navigation.navArgument
+import com.kadambari.spendwise.presentation.transaction.TransactionFormMode
+import com.kadambari.spendwise.presentation.transaction.TransactionFormRoute
+import com.kadambari.spendwise.presentation.transaction.TransactionListRoute
+import com.kadambari.spendwise.presentation.transaction.TransactionViewModel
 
 @Composable
 fun SpendWiseNavHost(
@@ -24,8 +32,61 @@ fun SpendWiseNavHost(
         composable(Screen.Dashboard.route) {
             DashboardScreen()
         }
-        composable(Screen.Transactions.route) {
-            TransactionRoute()
+        navigation(
+            route = Screen.Transactions.route,
+            startDestination = Screen.TransactionList.route
+        ) {
+            composable(Screen.TransactionList.route) { backStackEntry ->
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(Screen.Transactions.route)
+                }
+                val viewModel: TransactionViewModel = hiltViewModel(parentEntry)
+                TransactionListRoute(
+                    viewModel = viewModel,
+                    onNavigateToAdd = {
+                        navController.navigate(Screen.TransactionAdd.route)
+                    },
+                    onNavigateToEdit = { transactionId ->
+                        navController.navigate(Screen.TransactionEdit.createRoute(transactionId))
+                    }
+                )
+            }
+            composable(Screen.TransactionAdd.route) { backStackEntry ->
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(Screen.Transactions.route)
+                }
+                val viewModel: TransactionViewModel = hiltViewModel(parentEntry)
+                TransactionFormRoute(
+                    mode = TransactionFormMode.ADD,
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
+            composable(
+                route = Screen.TransactionEdit.route,
+                arguments = listOf(
+                    navArgument("transactionId") {
+                        type = NavType.StringType
+                        nullable = false
+                    }
+                )
+            ) { backStackEntry ->
+                val transactionId = backStackEntry.arguments?.getString("transactionId").orEmpty()
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(Screen.Transactions.route)
+                }
+                val viewModel: TransactionViewModel = hiltViewModel(parentEntry)
+                TransactionFormRoute(
+                    mode = TransactionFormMode.EDIT,
+                    transactionId = transactionId,
+                    viewModel = viewModel,
+                    onNavigateBack = {
+                        navController.popBackStack()
+                    }
+                )
+            }
         }
         composable(Screen.Analytics.route) {
             AnalyticsScreen()
