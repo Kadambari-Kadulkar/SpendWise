@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
@@ -56,6 +57,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -163,6 +165,8 @@ fun TransactionFormScreen(
         } else {
             TransactionFormContent(
                 formState = form,
+                isSaving = uiState.isSaving,
+                formError = uiState.formError,
                 maxSelectableDate = uiState.maxSelectableDate,
                 onEvent = onEvent,
                 modifier = Modifier
@@ -181,6 +185,8 @@ fun TransactionFormScreen(
 @Composable
 private fun TransactionFormContent(
     formState: TransactionFormUiState,
+    isSaving: Boolean,
+    formError: TransactionUiError?,
     maxSelectableDate: LocalDate?,
     onEvent: (TransactionUiEvent) -> Unit,
     modifier: Modifier = Modifier,
@@ -227,6 +233,17 @@ private fun TransactionFormContent(
             noteText = formState.noteText,
             noteError = formState.noteError,
             onNoteChange = { onEvent(TransactionUiEvent.NoteChanged(it)) },
+        )
+
+        // Form-level error banner
+        if (formError != null) {
+            FormErrorBanner(message = formError.message)
+        }
+
+        // 7. Save Action
+        SaveButton(
+            isSaving = isSaving,
+            onClick = { onEvent(TransactionUiEvent.SaveClicked) },
         )
 
         if (isCategoryPickerOpen) {
@@ -418,7 +435,7 @@ private fun CategorySelectorField(
             ),
             border = if (categoryError != null) {
                 CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error),
+                    brush = SolidColor(MaterialTheme.colorScheme.error),
                 )
             } else {
                 CardDefaults.outlinedCardBorder()
@@ -594,7 +611,7 @@ private fun DateSelectorField(
             ),
             border = if (dateError != null) {
                 CardDefaults.outlinedCardBorder().copy(
-                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error),
+                    brush = SolidColor(MaterialTheme.colorScheme.error),
                 )
             } else {
                 CardDefaults.outlinedCardBorder()
@@ -739,4 +756,63 @@ private fun NoteInputField(
             imeAction = ImeAction.Done,
         ),
     )
+}
+
+@Composable
+private fun FormErrorBanner(
+    message: String,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedCard(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = SolidColor(MaterialTheme.colorScheme.error),
+        ),
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.padding(
+                horizontal = SpendWiseDimens.screenHorizontalPadding,
+                vertical = SpendWiseDimens.listItemVerticalPadding,
+            ),
+        )
+    }
+}
+
+@Composable
+private fun SaveButton(
+    isSaving: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Button(
+        onClick = onClick,
+        enabled = !isSaving,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = SpendWiseDimens.minimumTouchTarget),
+    ) {
+        if (isSaving) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(SpendWiseDimens.iconSmall),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+            Spacer(modifier = Modifier.size(SpendWiseDimens.space8))
+            Text(
+                text = "Saving…",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        } else {
+            Text(
+                text = "Save",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
 }

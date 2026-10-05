@@ -341,6 +341,101 @@ class TransactionFormScreenTest {
             .assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithContentDescription("Transaction date, 5 October 2026. Tap to change date.")
             .assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithText("Save").assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun saveButtonRendersAndDispatchesSaveClicked() {
+        val events = mutableListOf<TransactionUiEvent>()
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            amountText = "12.50",
+            categoryId = "expense_food",
+            date = LocalDate.of(2026, 10, 5),
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(form = formState),
+            events = events,
+        )
+
+        composeRule.onNodeWithText("Save").assertIsDisplayed().performClick()
+
+        assertEquals(listOf(TransactionUiEvent.SaveClicked), events)
+    }
+
+    @Test
+    fun isSavingStateDisablesButtonAndShowsSavingIndicator() {
+        val events = mutableListOf<TransactionUiEvent>()
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            amountText = "12.50",
+            categoryId = "expense_food",
+            date = LocalDate.of(2026, 10, 5),
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(
+                form = formState,
+                isSaving = true,
+            ),
+            events = events,
+        )
+
+        composeRule.onNodeWithText("Saving…").assertIsDisplayed().assertIsNotEnabled()
+        composeRule.onNodeWithText("Saving…").performClick()
+
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun formErrorBannerDisplaysErrorMessage() {
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            amountText = "12.50",
+        )
+        val errorMessage = "Unable to save transaction. Please try again."
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(
+                form = formState,
+                formError = TransactionUiError(
+                    message = errorMessage,
+                    kind = TransactionUiErrorKind.OPERATION,
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithText(errorMessage).assertIsDisplayed()
+    }
+
+    @Test
+    fun existingFieldValuesRemainPopulatedDuringSaveAndFormError() {
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            amountText = "12.50",
+            categoryId = "expense_food",
+            date = LocalDate.of(2026, 10, 5),
+            noteText = "Lunch with team",
+        )
+        val errorMessage = "Unable to save transaction. Please try again."
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(
+                form = formState,
+                isSaving = false,
+                formError = TransactionUiError(
+                    message = errorMessage,
+                    kind = TransactionUiErrorKind.OPERATION,
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithText("12.50").assertIsDisplayed()
+        composeRule.onNodeWithText("Food").assertIsDisplayed()
+        composeRule.onNodeWithText("5 October 2026").assertIsDisplayed()
+        composeRule.onNodeWithText("Lunch with team").assertIsDisplayed()
+        composeRule.onNodeWithText(errorMessage).assertIsDisplayed()
     }
 
     private fun setScreen(
