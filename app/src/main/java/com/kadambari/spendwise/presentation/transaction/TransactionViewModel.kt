@@ -439,9 +439,9 @@ class TransactionViewModel @Inject constructor(
 
         val money = try {
             Money.fromDecimal(decimalAmount, currencyCode)
-        } catch (_: DomainValidationException) {
+        } catch (exception: DomainValidationException) {
             return DraftBuildResult.Invalid(
-                copy(amountError = "Enter a valid amount."),
+                copy(amountError = amountValidationMessage(exception)),
             )
         }
 
@@ -472,12 +472,43 @@ class TransactionViewModel @Inject constructor(
         )
     }
 
-    private fun validationError(ex: DomainValidationException,
-    ): TransactionUiError =
-        TransactionUiError(
-            message = "Please check the transaction details.",
+    private fun amountValidationMessage(exception: DomainValidationException): String =
+        when {
+            exception.message.containsValidationPhrase("fractional digits") ->
+                "Enter an amount with no more than two decimal places."
+
+            exception.message.containsValidationPhrase("outside the supported range") ->
+                "Enter a smaller amount."
+
+            exception.message.containsValidationPhrase("greater than zero") ->
+                "Enter an amount greater than zero."
+
+            else -> "Enter a valid amount."
+        }
+
+    private fun validationError(exception: DomainValidationException): TransactionUiError {
+        val message = when {
+            exception.message.containsValidationPhrase("transaction date") ->
+                "Choose today or an earlier date."
+
+            exception.message.containsValidationPhrase("transaction note") ->
+                "Note must be 500 characters or fewer."
+
+            exception.message.containsValidationPhrase("category") ->
+                "Select a valid category for this transaction type."
+
+            exception.message.containsValidationPhrase("money amount") ||
+                exception.message.containsValidationPhrase("fractional digits") ->
+                amountValidationMessage(exception)
+
+            else -> "Please check the transaction details."
+        }
+
+        return TransactionUiError(
+            message = message,
             kind = TransactionUiErrorKind.VALIDATION,
         )
+    }
 
     private fun operationError(message: String): TransactionUiError =
         TransactionUiError(message = message, kind = TransactionUiErrorKind.OPERATION)
@@ -490,3 +521,6 @@ class TransactionViewModel @Inject constructor(
         data class Invalid(val form: TransactionFormUiState) : DraftBuildResult
     }
 }
+
+private fun String?.containsValidationPhrase(phrase: String): Boolean =
+    this?.contains(phrase, ignoreCase = true) == true

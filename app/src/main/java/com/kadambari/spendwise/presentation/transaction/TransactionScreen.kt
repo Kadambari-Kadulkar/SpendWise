@@ -195,12 +195,13 @@ fun TransactionListItem(
         type = transaction.type,
     )
     val typeText = transaction.type.displayLabel()
+    val accessibilityTypeText = transaction.type.accessibilityLabel()
     val dateText = transaction.date.toDisplayText()
     val accessibilityDescription = buildString {
         append("Edit ")
         append(transaction.categoryLabel)
         append(", ")
-        append(typeText)
+        append(accessibilityTypeText)
         append(", ")
         append(amountText)
         append(", dated ")
@@ -218,7 +219,10 @@ fun TransactionListItem(
                 .heightIn(min = SpendWiseDimens.minimumTouchTarget)
                 .clickable(onClick = onClick)
                 .semantics(mergeDescendants = true) {
+                    // The row is one action that opens the transaction for editing.
                     role = Role.Button
+                    // This concise description intentionally replaces child text in
+                    // the merged node so TalkBack does not repeat the same details.
                     contentDescription = accessibilityDescription
                 }
                 .padding(
@@ -380,6 +384,11 @@ private fun TransactionInlineListError(onRetry: () -> Unit) {
 private fun TransactionType.displayLabel(): String = when (this) {
     TransactionType.INCOME -> "Income"
     TransactionType.EXPENSE -> "Expense"
+}
+
+private fun TransactionType.accessibilityLabel(): String = when (this) {
+    TransactionType.INCOME -> "income"
+    TransactionType.EXPENSE -> "expense"
 }
 
 private fun LocalDate.toDisplayText(): String = format(

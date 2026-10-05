@@ -1,12 +1,19 @@
 package com.kadambari.spendwise.presentation.transaction
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.compose.ui.test.assert
 import com.kadambari.spendwise.domain.model.CategoryId
 import com.kadambari.spendwise.domain.model.CurrencyCode
 import com.kadambari.spendwise.domain.model.TransactionType
@@ -80,6 +87,13 @@ class TransactionListScreenTest {
         composeRule
             .onNodeWithContentDescription("Edit Food", substring = true)
             .assertHasClickAction()
+            .assertHeightIsAtLeast(48.dp)
+            .assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button),
+            )
+            .assertContentDescriptionEquals(
+                "Edit Food, expense, -£12.50, dated 5 September 2026, note: Lunch",
+            )
             .performClick()
 
         assertEquals(

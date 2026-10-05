@@ -312,6 +312,94 @@ class TransactionViewModelTest {
     }
 
     @Test
+    fun `amount validation uses stable presentation copy`() = runTest {
+        val viewModel = createViewModel(
+            FakeTransactionRepository(),
+            Clock.fixed(ADD_INSTANT, LONDON_ZONE),
+        )
+        viewModel.onEvent(TransactionUiEvent.StartAdd)
+        viewModel.onEvent(TransactionUiEvent.AmountChanged("10.001"))
+
+        viewModel.onEvent(TransactionUiEvent.SaveClicked)
+
+        val form = requireNotNull(viewModel.uiState.value.form)
+        assertEquals(
+            "Enter an amount with no more than two decimal places.",
+            form.amountError,
+        )
+        assertFalse(form.amountError.orEmpty().contains("GBP amounts support"))
+    }
+
+    @Test
+    fun `domain category validation uses stable presentation copy`() = runTest {
+        val viewModel = createViewModel(
+            FakeTransactionRepository(),
+            Clock.fixed(ADD_INSTANT, LONDON_ZONE),
+        )
+        viewModel.onEvent(TransactionUiEvent.StartAdd)
+        viewModel.onEvent(TransactionUiEvent.AmountChanged("10.00"))
+        viewModel.onEvent(TransactionUiEvent.CategoryChanged("income_salary"))
+
+        viewModel.onEvent(TransactionUiEvent.SaveClicked)
+        advanceUntilIdle()
+
+        assertEquals(
+            "Select a valid category for this transaction type.",
+            viewModel.uiState.value.formError?.message,
+        )
+        assertFalse(
+            viewModel.uiState.value.formError?.message.orEmpty().contains("income_salary"),
+        )
+    }
+
+    @Test
+    fun `domain note validation uses stable presentation copy`() = runTest {
+        val viewModel = createViewModel(
+            FakeTransactionRepository(),
+            Clock.fixed(ADD_INSTANT, LONDON_ZONE),
+        )
+        viewModel.onEvent(TransactionUiEvent.StartAdd)
+        viewModel.onEvent(TransactionUiEvent.AmountChanged("10.00"))
+        viewModel.onEvent(TransactionUiEvent.CategoryChanged("expense_food"))
+        viewModel.onEvent(TransactionUiEvent.NoteChanged("x".repeat(TransactionDraft.MAX_NOTE_LENGTH + 1)))
+
+        viewModel.onEvent(TransactionUiEvent.SaveClicked)
+        advanceUntilIdle()
+
+        assertEquals(
+            "Note must be 500 characters or fewer.",
+            viewModel.uiState.value.formError?.message,
+        )
+        assertFalse(
+            viewModel.uiState.value.formError?.message.orEmpty().contains("Transaction note must"),
+        )
+    }
+
+    @Test
+    fun `domain date validation uses stable presentation copy`() = runTest {
+        val viewModel = createViewModel(
+            FakeTransactionRepository(),
+            Clock.fixed(ADD_INSTANT, LONDON_ZONE),
+        )
+        viewModel.onEvent(TransactionUiEvent.StartAdd)
+        viewModel.onEvent(TransactionUiEvent.AmountChanged("10.00"))
+        viewModel.onEvent(TransactionUiEvent.CategoryChanged("expense_food"))
+        viewModel.onEvent(TransactionUiEvent.DateChanged(ADD_TODAY.plusDays(1)))
+
+        viewModel.onEvent(TransactionUiEvent.SaveClicked)
+        advanceUntilIdle()
+
+        assertEquals(
+            "Choose today or an earlier date.",
+            viewModel.uiState.value.formError?.message,
+        )
+        assertFalse(
+            viewModel.uiState.value.formError?.message.orEmpty()
+                .contains("Transaction date must"),
+        )
+    }
+
+    @Test
     fun `save failure preserves entered form values`() = runTest {
         val repository = FakeTransactionRepository().apply {
             insertException = IllegalStateException("database")
@@ -326,6 +414,10 @@ class TransactionViewModelTest {
 
         assertFalse(viewModel.uiState.value.isSaving)
         assertEquals(TransactionUiErrorKind.OPERATION, viewModel.uiState.value.formError?.kind)
+        assertEquals(
+            "Unable to save the transaction.",
+            viewModel.uiState.value.formError?.message,
+        )
         assertEquals("10.00", viewModel.uiState.value.form?.amountText)
         assertEquals("expense_food", viewModel.uiState.value.form?.categoryId)
         assertTrue(viewModel.effects.replayCache.isEmpty())
