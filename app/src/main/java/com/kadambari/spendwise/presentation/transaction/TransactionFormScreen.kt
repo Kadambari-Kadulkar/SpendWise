@@ -2,7 +2,6 @@ package com.kadambari.spendwise.presentation.transaction
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,9 +23,12 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowDropDown
 import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,9 +40,12 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,9 +65,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.kadambari.spendwise.domain.model.CategoryCatalogue
 import com.kadambari.spendwise.domain.model.CategoryDefinition
-import com.kadambari.spendwise.domain.model.CategoryId
 import com.kadambari.spendwise.domain.model.TransactionType
 import com.kadambari.spendwise.presentation.designsystem.theme.SpendWiseDimens
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
 
 @Composable
 fun TransactionFormRoute(
@@ -152,6 +163,7 @@ fun TransactionFormScreen(
         } else {
             TransactionFormContent(
                 formState = form,
+                maxSelectableDate = uiState.maxSelectableDate,
                 onEvent = onEvent,
                 modifier = Modifier
                     .fillMaxSize()
@@ -169,10 +181,12 @@ fun TransactionFormScreen(
 @Composable
 private fun TransactionFormContent(
     formState: TransactionFormUiState,
+    maxSelectableDate: LocalDate?,
     onEvent: (TransactionUiEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isCategoryPickerOpen by remember { mutableStateOf(false) }
+    var isDatePickerOpen by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier,
@@ -201,6 +215,20 @@ private fun TransactionFormContent(
             onClick = { isCategoryPickerOpen = true },
         )
 
+        // 5. Date Selector
+        DateSelectorField(
+            date = formState.date,
+            dateError = formState.dateError,
+            onClick = { isDatePickerOpen = true },
+        )
+
+        // 6. Note Field
+        NoteInputField(
+            noteText = formState.noteText,
+            noteError = formState.noteError,
+            onNoteChange = { onEvent(TransactionUiEvent.NoteChanged(it)) },
+        )
+
         if (isCategoryPickerOpen) {
             CategoryPickerBottomSheet(
                 transactionType = formState.type,
@@ -210,6 +238,18 @@ private fun TransactionFormContent(
                     isCategoryPickerOpen = false
                 },
                 onDismiss = { isCategoryPickerOpen = false },
+            )
+        }
+
+        if (isDatePickerOpen) {
+            TransactionDatePickerDialog(
+                initialDate = formState.date,
+                maxSelectableDate = maxSelectableDate,
+                onDateSelected = { selectedDate ->
+                    onEvent(TransactionUiEvent.DateChanged(selectedDate))
+                    isDatePickerOpen = false
+                },
+                onDismiss = { isDatePickerOpen = false },
             )
         }
     }
@@ -504,4 +544,199 @@ private fun CategoryPickerBottomSheet(
             }
         }
     }
+}
+
+@Composable
+private fun DateSelectorField(
+    date: LocalDate?,
+    dateError: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val formattedDate = remember(date) {
+        date?.format(
+            DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
+                .withLocale(Locale.UK),
+        )
+    }
+
+    val displayDate = formattedDate ?: "Select date"
+    val isDateSelected = date != null
+    val accessibilityDescription = if (isDateSelected) {
+        "Transaction date, $displayDate. Tap to change date."
+    } else {
+        "Transaction date, not selected. Tap to select date."
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = "Date",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (dateError != null) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier.padding(bottom = SpendWiseDimens.space4),
+        )
+
+        OutlinedCard(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = SpendWiseDimens.minimumTouchTarget)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = accessibilityDescription
+                },
+            colors = CardDefaults.outlinedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+            ),
+            border = if (dateError != null) {
+                CardDefaults.outlinedCardBorder().copy(
+                    brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.error),
+                )
+            } else {
+                CardDefaults.outlinedCardBorder()
+            },
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = SpendWiseDimens.screenHorizontalPadding,
+                        vertical = SpendWiseDimens.listItemVerticalPadding,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    text = displayDate,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isDateSelected) {
+                        MaterialTheme.colorScheme.onSurface
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+                Icon(
+                    imageVector = Icons.Outlined.CalendarToday,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        dateError?.let { error ->
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(
+                    start = SpendWiseDimens.screenHorizontalPadding,
+                    top = SpendWiseDimens.space4,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun TransactionDatePickerDialog(
+    initialDate: LocalDate?,
+    maxSelectableDate: LocalDate?,
+    onDateSelected: (LocalDate) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val initialSelectedMillis = remember(initialDate) {
+        initialDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
+    }
+    val maxSelectableMillis = remember(maxSelectableDate) {
+        maxSelectableDate?.atStartOfDay(ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
+    }
+
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = initialSelectedMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return maxSelectableMillis == null || utcTimeMillis <= maxSelectableMillis
+            }
+        },
+    )
+
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val selectedDate = datePickerState.selectedDateMillis?.let { utcMillis ->
+                        Instant.ofEpochMilli(utcMillis)
+                            .atZone(ZoneOffset.UTC)
+                            .toLocalDate()
+                    }
+                    if (selectedDate != null) {
+                        onDateSelected(selectedDate)
+                    }
+                },
+            ) {
+                Text("OK")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    ) {
+        DatePicker(state = datePickerState)
+    }
+}
+
+@Composable
+private fun NoteInputField(
+    noteText: String,
+    noteError: String?,
+    onNoteChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = noteText,
+        onValueChange = { input ->
+            if (input.length <= 500) {
+                onNoteChange(input)
+            }
+        },
+        modifier = modifier.fillMaxWidth(),
+        label = { Text("Note (optional)") },
+        placeholder = { Text("Enter a note...") },
+        minLines = 2,
+        maxLines = 4,
+        isError = noteError != null,
+        supportingText = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                if (noteError != null) {
+                    Text(
+                        text = noteError,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                Text(
+                    text = "${noteText.length}/500",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Text,
+            imeAction = ImeAction.Done,
+        ),
+    )
 }

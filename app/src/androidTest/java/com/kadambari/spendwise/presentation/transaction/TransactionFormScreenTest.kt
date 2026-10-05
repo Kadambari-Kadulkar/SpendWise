@@ -2,6 +2,7 @@ package com.kadambari.spendwise.presentation.transaction
 
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -14,6 +15,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kadambari.spendwise.domain.model.CurrencyCatalogue
 import com.kadambari.spendwise.domain.model.TransactionType
 import com.kadambari.spendwise.presentation.designsystem.theme.SpendWiseTheme
+import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -34,10 +36,15 @@ class TransactionFormScreenTest {
             currencyCode = CurrencyCatalogue.GBP.code,
             type = TransactionType.EXPENSE,
             categoryId = null,
+            date = LocalDate.of(2026, 10, 5),
+            noteText = "",
         )
         setScreen(
             mode = TransactionFormMode.ADD,
-            uiState = TransactionUiState(form = formState),
+            uiState = TransactionUiState(
+                form = formState,
+                maxSelectableDate = LocalDate.of(2026, 10, 5),
+            ),
         )
 
         composeRule.onNodeWithText("Add transaction").assertIsDisplayed()
@@ -46,6 +53,9 @@ class TransactionFormScreenTest {
         composeRule.onNodeWithText("Expense").assertIsDisplayed().assertIsSelected()
         composeRule.onNodeWithText("Income").assertIsDisplayed().assertIsNotSelected()
         composeRule.onNodeWithText("Select category").assertIsDisplayed()
+        composeRule.onNodeWithText("5 October 2026").assertIsDisplayed()
+        composeRule.onNodeWithText("Note (optional)").assertIsDisplayed()
+        composeRule.onNodeWithText("0/500").assertIsDisplayed()
     }
 
     @Test
@@ -57,6 +67,8 @@ class TransactionFormScreenTest {
             currencyCode = CurrencyCatalogue.GBP.code,
             type = TransactionType.EXPENSE,
             categoryId = "expense_food",
+            date = LocalDate.of(2026, 9, 20),
+            noteText = "Dinner with friends",
         )
         setScreen(
             mode = TransactionFormMode.EDIT,
@@ -66,6 +78,9 @@ class TransactionFormScreenTest {
         composeRule.onNodeWithText("Edit transaction").assertIsDisplayed()
         composeRule.onNodeWithText("42.80").assertIsDisplayed()
         composeRule.onNodeWithText("Food").assertIsDisplayed()
+        composeRule.onNodeWithText("20 September 2026").assertIsDisplayed()
+        composeRule.onNodeWithText("Dinner with friends").assertIsDisplayed()
+        composeRule.onNodeWithText("19/500").assertIsDisplayed()
     }
 
     @Test
@@ -167,11 +182,134 @@ class TransactionFormScreenTest {
     }
 
     @Test
-    fun amountAndCategoryErrorsAreDisplayedWhenPresent() {
+    fun dateFieldRendersAndClickOpensDatePicker() {
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            date = LocalDate.of(2026, 10, 5),
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(
+                form = formState,
+                maxSelectableDate = LocalDate.of(2026, 10, 5),
+            ),
+        )
+
+        composeRule.onNodeWithText("5 October 2026").assertIsDisplayed()
+        composeRule.onNodeWithText("5 October 2026").performClick()
+
+        // Dialog confirm/dismiss buttons are displayed
+        composeRule.onNodeWithText("OK").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").assertIsDisplayed()
+    }
+
+    @Test
+    fun selectingValidDateFromDatePickerDispatchesDateChanged() {
+        val events = mutableListOf<TransactionUiEvent>()
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            date = LocalDate.of(2026, 10, 5),
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(
+                form = formState,
+                maxSelectableDate = LocalDate.of(2026, 10, 5),
+            ),
+            events = events,
+        )
+
+        // Open DatePicker dialog
+        composeRule.onNodeWithText("5 October 2026").performClick()
+
+        // Select day 4 in current month
+        composeRule.onNodeWithText("4").performClick()
+
+        // Confirm selection
+        composeRule.onNodeWithText("OK").performClick()
+
+        assertEquals(
+            listOf(TransactionUiEvent.DateChanged(LocalDate.of(2026, 10, 4))),
+            events,
+        )
+    }
+
+    @Test
+    fun datePickerRespectsMaxSelectableDate() {
+        val events = mutableListOf<TransactionUiEvent>()
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            date = LocalDate.of(2026, 10, 5),
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(
+                form = formState,
+                maxSelectableDate = LocalDate.of(2026, 10, 5),
+            ),
+            events = events,
+        )
+
+        // Open DatePicker dialog
+        composeRule.onNodeWithText("5 October 2026").performClick()
+
+        // Day 6 (future date beyond maxSelectableDate) is not enabled / unselectable
+        composeRule.onNodeWithText("6").assertIsNotEnabled()
+
+        // Attempting to click day 6 and confirming does not change date to day 6
+        composeRule.onNodeWithText("6").performClick()
+        composeRule.onNodeWithText("OK").performClick()
+
+        assertTrue(events.none { it is TransactionUiEvent.DateChanged && it.value == LocalDate.of(2026, 10, 6) })
+    }
+
+    @Test
+    fun noteFieldRendersAndInputDispatchesNoteChanged() {
+        val events = mutableListOf<TransactionUiEvent>()
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            noteText = "",
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(form = formState),
+            events = events,
+        )
+
+        composeRule.onNodeWithText("Note (optional)").performTextInput("Coffee")
+
+        assertTrue(events.any { it is TransactionUiEvent.NoteChanged && it.value == "Coffee" })
+    }
+
+    @Test
+    fun noteFieldEnforces500CharacterLimit() {
+        val events = mutableListOf<TransactionUiEvent>()
+        val existing500Chars = "a".repeat(500)
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            noteText = existing500Chars,
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(form = formState),
+            events = events,
+        )
+
+        composeRule.onNodeWithText("500/500").assertIsDisplayed()
+        composeRule.onNodeWithText("Note (optional)").performTextInput("extra")
+
+        // No new NoteChanged event is dispatched beyond 500 characters
+        assertTrue(events.none { it is TransactionUiEvent.NoteChanged && it.value.length > 500 })
+    }
+
+    @Test
+    fun allFieldErrorsAreDisplayedWhenPresent() {
         val formState = TransactionFormUiState(
             mode = TransactionFormMode.ADD,
             amountError = "Enter a valid amount.",
             categoryError = "Select a valid category.",
+            dateError = "Choose today or an earlier date.",
+            noteError = "Note must be 500 characters or fewer.",
         )
         setScreen(
             mode = TransactionFormMode.ADD,
@@ -180,6 +318,8 @@ class TransactionFormScreenTest {
 
         composeRule.onNodeWithText("Enter a valid amount.").assertIsDisplayed()
         composeRule.onNodeWithText("Select a valid category.").assertIsDisplayed()
+        composeRule.onNodeWithText("Choose today or an earlier date.").assertIsDisplayed()
+        composeRule.onNodeWithText("Note must be 500 characters or fewer.").assertIsDisplayed()
     }
 
     @Test
@@ -187,6 +327,7 @@ class TransactionFormScreenTest {
         val formState = TransactionFormUiState(
             mode = TransactionFormMode.ADD,
             categoryId = "expense_food",
+            date = LocalDate.of(2026, 10, 5),
         )
         setScreen(
             mode = TransactionFormMode.ADD,
@@ -197,6 +338,8 @@ class TransactionFormScreenTest {
         composeRule.onNodeWithText("Expense").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithText("Income").assertHeightIsAtLeast(48.dp)
         composeRule.onNodeWithContentDescription("Category, Food. Tap to change category.")
+            .assertHeightIsAtLeast(48.dp)
+        composeRule.onNodeWithContentDescription("Transaction date, 5 October 2026. Tap to change date.")
             .assertHeightIsAtLeast(48.dp)
     }
 
