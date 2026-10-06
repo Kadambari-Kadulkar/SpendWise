@@ -555,6 +555,408 @@ class TransactionViewModelTest {
         advanceUntilIdle()
     }
 
+    @Test
+    fun `search filter with empty or blank query returns all transactions`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Coffee")
+        val t2 = expenseTransaction(id = "2", note = "Tea")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged(""))
+        assertEquals(2, viewModel.uiState.value.filteredTransactions.size)
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("   "))
+        assertEquals(2, viewModel.uiState.value.filteredTransactions.size)
+        assertFalse(viewModel.uiState.value.hasActiveFilters)
+    }
+
+    @Test
+    fun `search filter matches category label`() = runTest {
+        val t1 = customTransaction(id = "1", type = TransactionType.EXPENSE, categoryId = "expense_food", note = "Snack")
+        val t2 = customTransaction(id = "2", type = TransactionType.INCOME, categoryId = "income_salary", note = "Bonus")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Food"))
+        val filtered = viewModel.uiState.value.filteredTransactions
+        assertEquals(1, filtered.size)
+        assertEquals("1", filtered.single().id)
+        assertEquals(2, viewModel.uiState.value.transactions.size)
+    }
+
+    @Test
+    fun `search filter matches note`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Tesco grocery shopping")
+        val t2 = expenseTransaction(id = "2", note = "Bus ticket")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Tesco"))
+        val filtered = viewModel.uiState.value.filteredTransactions
+        assertEquals(1, filtered.size)
+        assertEquals("1", filtered.single().id)
+    }
+
+    @Test
+    fun `search filter is case-insensitive and matches substrings with trimmed input`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Weekly Sainsbury Groceries")
+        val t2 = expenseTransaction(id = "2", note = "Cinema")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("  sainsbury  "))
+        val filtered = viewModel.uiState.value.filteredTransactions
+        assertEquals(1, filtered.size)
+        assertEquals("1", filtered.single().id)
+    }
+
+    @Test
+    fun `search filter with no match returns empty filtered list but preserves source transactions`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Dinner")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Electric"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+        assertEquals(1, viewModel.uiState.value.transactions.size)
+    }
+
+    @Test
+    fun `search filter does not match amount, currency, date or transaction id`() = runTest {
+        val t1 = expenseTransaction(id = "transaction-123", note = "Lunch")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("transaction-123"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("1025"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("GBP"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("2026"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+    }
+
+    @Test
+    fun `type filter selects all, income, or expense transactions`() = runTest {
+        val income = incomeTransaction(id = "1")
+        val expense = expenseTransaction(id = "2")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(income, expense)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.INCOME))
+        assertEquals(listOf("1"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        assertEquals(listOf("2"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(null))
+        assertEquals(2, viewModel.uiState.value.filteredTransactions.size)
+    }
+
+    @Test
+    fun `category filter selects specific category or all categories`() = runTest {
+        val t1 = customTransaction(id = "1", type = TransactionType.EXPENSE, categoryId = "expense_food")
+        val t2 = customTransaction(id = "2", type = TransactionType.EXPENSE, categoryId = "expense_transport")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        assertEquals(listOf("1"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_bills"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged(null))
+        assertEquals(2, viewModel.uiState.value.filteredTransactions.size)
+    }
+
+    @Test
+    fun `date filter handles dateFrom, dateTo, range, and inclusive boundaries`() = runTest {
+        val day1 = ADD_TODAY.minusDays(2)
+        val day2 = ADD_TODAY.minusDays(1)
+        val day3 = ADD_TODAY
+
+        val t1 = expenseTransaction(id = "1", date = day1)
+        val t2 = expenseTransaction(id = "2", date = day2)
+        val t3 = expenseTransaction(id = "3", date = day3)
+
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2, t3)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        // dateFrom only (inclusive)
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(day2))
+        assertEquals(listOf("2", "3"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // dateTo only (inclusive)
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(null))
+        viewModel.onEvent(TransactionUiEvent.DateToChanged(day2))
+        assertEquals(listOf("1", "2"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // date range (inclusive on both ends)
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(day1))
+        viewModel.onEvent(TransactionUiEvent.DateToChanged(day2))
+        assertEquals(listOf("1", "2"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // date range excluding all
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(day3.plusDays(1)))
+        viewModel.onEvent(TransactionUiEvent.DateToChanged(day3.plusDays(2)))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+    }
+
+    @Test
+    fun `combined filter criteria use AND semantics`() = runTest {
+        val day1 = ADD_TODAY.minusDays(1)
+        val day2 = ADD_TODAY
+
+        val t1 = customTransaction(id = "1", type = TransactionType.EXPENSE, categoryId = "expense_food", date = day1, note = "Tesco groceries")
+        val t2 = customTransaction(id = "2", type = TransactionType.EXPENSE, categoryId = "expense_food", date = day2, note = "Lunch cafe")
+        val t3 = customTransaction(id = "3", type = TransactionType.EXPENSE, categoryId = "expense_transport", date = day2, note = "Tesco petrol")
+        val t4 = customTransaction(id = "4", type = TransactionType.INCOME, categoryId = "income_freelance", date = day2, note = "Tesco client contract")
+
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2, t3, t4)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        // Search + Type
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Tesco"))
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        assertEquals(listOf("1", "3"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // Search + Category
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(null))
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        assertEquals(listOf("1"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // Search + Date
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged(null))
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(day2))
+        assertEquals(listOf("3", "4"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // Type + Category
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged(""))
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(null))
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        assertEquals(listOf("1", "2"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // Type + Date
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged(null))
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.INCOME))
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(day2))
+        assertEquals(listOf("4"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // Category + Date
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(null))
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(day2))
+        assertEquals(listOf("2"), viewModel.uiState.value.filteredTransactions.map { it.id })
+
+        // Search + Type + Category + Date
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("groceries"))
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(day1))
+        viewModel.onEvent(TransactionUiEvent.DateToChanged(day1))
+        assertEquals(listOf("1"), viewModel.uiState.value.filteredTransactions.map { it.id })
+    }
+
+    @Test
+    fun `clear filters resets all filter fields and restores filteredTransactions`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Coffee")
+        val t2 = incomeTransaction(id = "2")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1, t2)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Coffee"))
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(ADD_TODAY))
+        viewModel.onEvent(TransactionUiEvent.DateToChanged(ADD_TODAY))
+
+        assertTrue(viewModel.uiState.value.hasActiveFilters)
+        assertEquals(1, viewModel.uiState.value.filteredTransactions.size)
+
+        viewModel.onEvent(TransactionUiEvent.ClearFilters)
+
+        val state = viewModel.uiState.value
+        assertEquals("", state.filter.searchQuery)
+        assertNull(state.filter.type)
+        assertNull(state.filter.categoryId)
+        assertNull(state.filter.dateFrom)
+        assertNull(state.filter.dateTo)
+        assertFalse(state.hasActiveFilters)
+        assertEquals(2, state.filteredTransactions.size)
+    }
+
+    @Test
+    fun `hasActiveFilters correctly derives active filter state`() = runTest {
+        val viewModel = createViewModel(FakeTransactionRepository())
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.hasActiveFilters)
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("test"))
+        assertTrue(viewModel.uiState.value.hasActiveFilters)
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged(""))
+
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        assertTrue(viewModel.uiState.value.hasActiveFilters)
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(null))
+
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        assertTrue(viewModel.uiState.value.hasActiveFilters)
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged(null))
+
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(ADD_TODAY))
+        assertTrue(viewModel.uiState.value.hasActiveFilters)
+        viewModel.onEvent(TransactionUiEvent.DateFromChanged(null))
+
+        viewModel.onEvent(TransactionUiEvent.DateToChanged(ADD_TODAY))
+        assertTrue(viewModel.uiState.value.hasActiveFilters)
+        viewModel.onEvent(TransactionUiEvent.DateToChanged(null))
+
+        assertFalse(viewModel.uiState.value.hasActiveFilters)
+    }
+
+    @Test
+    fun `underlying transaction flow emission recalculates filtered transactions automatically`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Coffee")
+        val repository = FakeTransactionRepository().apply {
+            observedTransactions.value = listOf(t1)
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Coffee"))
+        assertEquals(1, viewModel.uiState.value.filteredTransactions.size)
+
+        val t2 = expenseTransaction(id = "2", note = "Another Coffee")
+        val t3 = expenseTransaction(id = "3", note = "Sandwich")
+        repository.observedTransactions.value = listOf(t1, t2, t3)
+        advanceUntilIdle()
+
+        assertEquals(3, viewModel.uiState.value.transactions.size)
+        assertEquals(listOf("1", "2"), viewModel.uiState.value.filteredTransactions.map { it.id })
+    }
+
+    @Test
+    fun `adding a matching transaction makes it appear in filtered results`() = runTest {
+        val repository = FakeTransactionRepository()
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Lunch"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+
+        viewModel.onEvent(TransactionUiEvent.StartAdd)
+        viewModel.onEvent(TransactionUiEvent.AmountChanged("15.50"))
+        viewModel.onEvent(TransactionUiEvent.CategoryChanged("expense_food"))
+        viewModel.onEvent(TransactionUiEvent.DateChanged(ADD_TODAY))
+        viewModel.onEvent(TransactionUiEvent.NoteChanged("Quick Lunch"))
+        viewModel.onEvent(TransactionUiEvent.SaveClicked)
+        advanceUntilIdle()
+
+        val saved = repository.insertedTransaction!!
+        repository.observedTransactions.value = listOf(saved)
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.transactions.size)
+        assertEquals(1, viewModel.uiState.value.filteredTransactions.size)
+        assertEquals("Quick Lunch", viewModel.uiState.value.filteredTransactions.single().note)
+    }
+
+    @Test
+    fun `editing a transaction updates its presence in filtered results`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Lunch")
+        val repository = FakeTransactionRepository().apply {
+            transactions["1"] = t1
+            observedTransactions.value = listOf(t1)
+            updateResult = true
+        }
+        val viewModel = createViewModel(
+            repository = repository,
+            clock = Clock.fixed(UPDATE_INSTANT, LONDON_ZONE),
+        )
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Dinner"))
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+
+        viewModel.onEvent(TransactionUiEvent.StartEdit("1"))
+        advanceUntilIdle()
+        viewModel.onEvent(TransactionUiEvent.NoteChanged("Family Dinner"))
+        viewModel.onEvent(TransactionUiEvent.SaveClicked)
+        advanceUntilIdle()
+
+        val updated = repository.updatedTransaction!!
+        repository.observedTransactions.value = listOf(updated)
+        advanceUntilIdle()
+
+        assertEquals(1, viewModel.uiState.value.filteredTransactions.size)
+        assertEquals("Family Dinner", viewModel.uiState.value.filteredTransactions.single().note)
+    }
+
+    @Test
+    fun `deleting a transaction removes it from filtered results`() = runTest {
+        val t1 = expenseTransaction(id = "1", note = "Coffee")
+        val repository = FakeTransactionRepository().apply {
+            transactions["1"] = t1
+            observedTransactions.value = listOf(t1)
+            deleteResult = true
+        }
+        val viewModel = createViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.onEvent(TransactionUiEvent.SearchQueryChanged("Coffee"))
+        assertEquals(1, viewModel.uiState.value.filteredTransactions.size)
+
+        viewModel.onEvent(TransactionUiEvent.DeleteRequested("1"))
+        viewModel.onEvent(TransactionUiEvent.DeleteConfirmed)
+        advanceUntilIdle()
+
+        repository.observedTransactions.value = emptyList()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.transactions.isEmpty())
+        assertTrue(viewModel.uiState.value.filteredTransactions.isEmpty())
+    }
+
     private fun createViewModel(
         repository: FakeTransactionRepository,
         clock: Clock = Clock.fixed(ADD_INSTANT, LONDON_ZONE),
@@ -579,6 +981,44 @@ class TransactionViewModelTest {
             amount = Money.fromMinorUnits(1025L, CurrencyCode.GBP),
             type = TransactionType.EXPENSE,
             categoryId = CategoryId.of("expense_food"),
+            transactionDate = date,
+            note = note,
+        ),
+        clock = Clock.fixed(CREATED_INSTANT, LONDON_ZONE),
+        zoneId = LONDON_ZONE,
+    )
+
+    private fun incomeTransaction(
+        id: String = "transaction-income-1",
+        date: LocalDate = ADD_TODAY,
+        categoryId: String = "income_salary",
+        note: String? = "Monthly salary",
+    ): Transaction = Transaction.create(
+        id = id,
+        draft = TransactionDraft(
+            amount = Money.fromMinorUnits(300000L, CurrencyCode.GBP),
+            type = TransactionType.INCOME,
+            categoryId = CategoryId.of(categoryId),
+            transactionDate = date,
+            note = note,
+        ),
+        clock = Clock.fixed(CREATED_INSTANT, LONDON_ZONE),
+        zoneId = LONDON_ZONE,
+    )
+
+    private fun customTransaction(
+        id: String,
+        type: TransactionType,
+        categoryId: String,
+        date: LocalDate = ADD_TODAY,
+        note: String? = null,
+        amountMinorUnits: Long = 1000L,
+    ): Transaction = Transaction.create(
+        id = id,
+        draft = TransactionDraft(
+            amount = Money.fromMinorUnits(amountMinorUnits, CurrencyCode.GBP),
+            type = type,
+            categoryId = CategoryId.of(categoryId),
             transactionDate = date,
             note = note,
         ),

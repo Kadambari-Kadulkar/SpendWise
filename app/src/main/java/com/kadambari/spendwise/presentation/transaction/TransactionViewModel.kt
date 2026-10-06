@@ -75,6 +75,12 @@ class TransactionViewModel @Inject constructor(
             TransactionUiEvent.DeleteCancelled -> cancelDelete()
             TransactionUiEvent.RetryList -> observeTransactions()
             TransactionUiEvent.ClearError -> clearErrors()
+            is TransactionUiEvent.SearchQueryChanged -> updateSearchQuery(event.value)
+            is TransactionUiEvent.TransactionTypeFilterChanged -> updateTypeFilter(event.value)
+            is TransactionUiEvent.CategoryFilterChanged -> updateCategoryFilter(event.value)
+            is TransactionUiEvent.DateFromChanged -> updateDateFrom(event.value)
+            is TransactionUiEvent.DateToChanged -> updateDateTo(event.value)
+            TransactionUiEvent.ClearFilters -> clearFilters()
         }
     }
 
@@ -95,6 +101,7 @@ class TransactionViewModel @Inject constructor(
                         _uiState.update { current ->
                             current.copy(
                                 transactions = transactions,
+                                filteredTransactions = filterTransactions(transactions, current.filter),
                                 isListLoading = false,
                                 listError = null,
                             )
@@ -389,6 +396,62 @@ class TransactionViewModel @Inject constructor(
                     noteError = null,
                 ),
             )
+        }
+    }
+
+    private fun updateSearchQuery(value: String) {
+        updateFilter { filter -> filter.copy(searchQuery = value) }
+    }
+
+    private fun updateTypeFilter(value: TransactionType?) {
+        updateFilter { filter -> filter.copy(type = value) }
+    }
+
+    private fun updateCategoryFilter(value: String?) {
+        updateFilter { filter -> filter.copy(categoryId = value) }
+    }
+
+    private fun updateDateFrom(value: LocalDate?) {
+        updateFilter { filter -> filter.copy(dateFrom = value) }
+    }
+
+    private fun updateDateTo(value: LocalDate?) {
+        updateFilter { filter -> filter.copy(dateTo = value) }
+    }
+
+    private fun clearFilters() {
+        updateFilter { TransactionFilterUiState() }
+    }
+
+    private fun updateFilter(transform: (TransactionFilterUiState) -> TransactionFilterUiState) {
+        _uiState.update { current ->
+            val newFilter = transform(current.filter)
+            current.copy(
+                filter = newFilter,
+                filteredTransactions = filterTransactions(current.transactions, newFilter),
+            )
+        }
+    }
+
+    private fun filterTransactions(
+        transactions: List<TransactionListItemUiModel>,
+        filter: TransactionFilterUiState,
+    ): List<TransactionListItemUiModel> {
+        val trimmedQuery = filter.searchQuery.trim()
+        return transactions.filter { item ->
+            val matchesSearch = trimmedQuery.isEmpty() ||
+                item.categoryLabel.contains(trimmedQuery, ignoreCase = true) ||
+                (item.note?.contains(trimmedQuery, ignoreCase = true) == true)
+
+            val matchesType = filter.type == null || item.type == filter.type
+
+            val matchesCategory = filter.categoryId == null || item.categoryId == filter.categoryId
+
+            val matchesDateFrom = filter.dateFrom == null || !item.date.isBefore(filter.dateFrom)
+
+            val matchesDateTo = filter.dateTo == null || !item.date.isAfter(filter.dateTo)
+
+            matchesSearch && matchesType && matchesCategory && matchesDateFrom && matchesDateTo
         }
     }
 

@@ -19,6 +19,13 @@ sealed interface TransactionUiEvent {
     data object DeleteConfirmed : TransactionUiEvent
     data object DeleteCancelled : TransactionUiEvent
 
+    data class SearchQueryChanged(val value: String) : TransactionUiEvent
+    data class TransactionTypeFilterChanged(val value: TransactionType?) : TransactionUiEvent
+    data class CategoryFilterChanged(val value: String?) : TransactionUiEvent
+    data class DateFromChanged(val value: LocalDate?) : TransactionUiEvent
+    data class DateToChanged(val value: LocalDate?) : TransactionUiEvent
+    data object ClearFilters : TransactionUiEvent
+
     data object RetryList : TransactionUiEvent
     data object ClearError : TransactionUiEvent
 }

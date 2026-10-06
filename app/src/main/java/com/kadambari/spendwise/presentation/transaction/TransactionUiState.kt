@@ -13,6 +13,8 @@ import java.time.LocalDate
  */
 data class TransactionUiState(
     val transactions: List<TransactionListItemUiModel> = emptyList(),
+    val filteredTransactions: List<TransactionListItemUiModel> = emptyList(),
+    val filter: TransactionFilterUiState = TransactionFilterUiState(),
     val isListLoading: Boolean = true,
     val listError: TransactionUiError? = null,
     /**
@@ -26,7 +28,25 @@ data class TransactionUiState(
     val pendingDeleteId: String? = null,
     val deletingTransactionId: String? = null,
     val deleteError: TransactionUiError? = null,
-)
+) {
+    val hasActiveFilters: Boolean
+        get() = filter.hasActiveFilters
+}
+
+data class TransactionFilterUiState(
+    val searchQuery: String = "",
+    val type: TransactionType? = null,
+    val categoryId: String? = null,
+    val dateFrom: LocalDate? = null,
+    val dateTo: LocalDate? = null,
+) {
+    val hasActiveFilters: Boolean
+        get() = searchQuery.isNotBlank() ||
+            type != null ||
+            categoryId != null ||
+            dateFrom != null ||
+            dateTo != null
+}
 
 /** Presentation representation of a domain transaction for a future UI. */
 data class TransactionListItemUiModel(
