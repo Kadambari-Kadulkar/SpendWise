@@ -17,7 +17,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -27,6 +30,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -138,6 +142,13 @@ fun TransactionListScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         )
+
+        if (uiState.pendingDeleteId != null) {
+            TransactionDeleteConfirmationDialog(
+                onConfirm = { onEvent(TransactionUiEvent.DeleteConfirmed) },
+                onDismiss = { onEvent(TransactionUiEvent.DeleteCancelled) },
+            )
+        }
     }
 }
 
@@ -200,8 +211,12 @@ private fun TransactionListContent(
                     ) { transaction ->
                         TransactionListItem(
                             transaction = transaction,
-                            onClick = {
+                            isDeleting = uiState.deletingTransactionId == transaction.id,
+                            onEdit = {
                                 onEvent(TransactionUiEvent.StartEdit(transaction.id))
+                            },
+                            onDelete = {
+                                onEvent(TransactionUiEvent.DeleteRequested(transaction.id))
                             },
                         )
                     }
@@ -214,8 +229,10 @@ private fun TransactionListContent(
 @Composable
 fun TransactionListItem(
     transaction: TransactionListItemUiModel,
-    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    isDeleting: Boolean = false,
 ) {
     val amountText = TransactionAmountFormatter.format(
         amountMinorUnits = transaction.amountMinorUnits,
@@ -225,7 +242,7 @@ fun TransactionListItem(
     val typeText = transaction.type.displayLabel()
     val accessibilityTypeText = transaction.type.accessibilityLabel()
     val dateText = transaction.date.toDisplayText()
-    val accessibilityDescription = buildString {
+    val editAccessibilityDescription = buildString {
         append("Edit ")
         append(transaction.categoryLabel)
         append(", ")
@@ -239,68 +256,123 @@ fun TransactionListItem(
             append(note)
         }
     }
+    val deleteAccessibilityDescription =
+        "Delete ${transaction.categoryLabel} transaction, $amountText"
 
     Column(modifier = modifier.fillMaxWidth()) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = SpendWiseDimens.minimumTouchTarget)
-                .clickable(onClick = onClick)
-                .semantics(mergeDescendants = true) {
-                    // The row is one action that opens the transaction for editing.
-                    role = Role.Button
-                    // This concise description intentionally replaces child text in
-                    // the merged node so TalkBack does not repeat the same details.
-                    contentDescription = accessibilityDescription
-                }
                 .padding(
-                    horizontal = SpendWiseDimens.screenHorizontalPadding,
-                    vertical = SpendWiseDimens.listItemVerticalPadding,
+                    start = SpendWiseDimens.screenHorizontalPadding,
+                    end = SpendWiseDimens.space8,
+                    top = SpendWiseDimens.listItemVerticalPadding,
+                    bottom = SpendWiseDimens.listItemVerticalPadding,
                 ),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-            ) {
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(end = SpendWiseDimens.space12),
+                    .heightIn(min = SpendWiseDimens.minimumTouchTarget)
+                    .clickable(
+                        onClick = onEdit,
+                        role = Role.Button,
+                    )
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = editAccessibilityDescription
+                    },
             ) {
-                Text(
-                    text = transaction.categoryLabel,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                transaction.note?.takeIf { it.isNotBlank() }?.let { note ->
-                    Spacer(modifier = Modifier.height(SpendWiseDimens.space4))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = SpendWiseDimens.space12),
+                    ) {
+                        Text(
+                            text = transaction.categoryLabel,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        transaction.note?.takeIf { it.isNotBlank() }?.let { note ->
+                            Spacer(modifier = Modifier.height(SpendWiseDimens.space4))
+                            Text(
+                                text = note,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+
                     Text(
-                        text = note,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = amountText,
+                        modifier = Modifier.weight(0.5f),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.End,
                     )
                 }
+
+                Text(
+                    text = "$typeText · $dateText",
+                    modifier = Modifier.padding(top = SpendWiseDimens.space8),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
-            Text(
-                text = amountText,
-                modifier = Modifier.weight(0.5f),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.End,
-            )
+            IconButton(
+                onClick = onDelete,
+                enabled = !isDeleting,
+                modifier = Modifier
+                    .size(SpendWiseDimens.minimumTouchTarget)
+                    .semantics {
+                        role = Role.Button
+                    },
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.DeleteOutline,
+                    contentDescription = deleteAccessibilityDescription,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-
-            Text(
-                text = "$typeText · $dateText",
-                modifier = Modifier.padding(top = SpendWiseDimens.space8),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
+}
+
+@Composable
+private fun TransactionDeleteConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete transaction?") },
+        text = {
+            Text("Are you sure you want to delete this transaction? This action cannot be undone.")
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                ),
+            ) {
+                Text("Delete")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+    )
 }
 
 @Composable

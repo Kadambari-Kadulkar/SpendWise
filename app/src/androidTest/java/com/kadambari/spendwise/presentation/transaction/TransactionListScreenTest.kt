@@ -3,17 +3,19 @@ package com.kadambari.spendwise.presentation.transaction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.compose.ui.test.assert
 import com.kadambari.spendwise.domain.model.CategoryId
 import com.kadambari.spendwise.domain.model.CurrencyCode
 import com.kadambari.spendwise.domain.model.TransactionType
@@ -74,7 +76,7 @@ class TransactionListScreenTest {
     }
 
     @Test
-    fun `transaction row exposes one semantic unit and dispatches edit`() {
+    fun `edit action exposes distinct semantics and dispatches edit`() {
         val events = mutableListOf<TransactionUiEvent>()
         setScreen(
             TransactionUiState(
@@ -100,6 +102,101 @@ class TransactionListScreenTest {
             listOf(TransactionUiEvent.StartEdit("expense-1")),
             events,
         )
+    }
+
+    @Test
+    fun `delete action exposes distinct semantics with minimum touch target and dispatches delete requested`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule
+            .onNodeWithContentDescription("Delete Food transaction, -£12.50")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .assert(
+                SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button),
+            )
+            .performClick()
+
+        assertEquals(
+            listOf(TransactionUiEvent.DeleteRequested("expense-1")),
+            events,
+        )
+    }
+
+    @Test
+    fun `confirmation dialog is displayed when pending delete is set`() {
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+                pendingDeleteId = "expense-1",
+            ),
+        )
+
+        composeRule.onNodeWithText("Delete transaction?").assertIsDisplayed()
+        composeRule
+            .onNodeWithText("Are you sure you want to delete this transaction? This action cannot be undone.")
+            .assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText("Delete").assertIsDisplayed().assertHasClickAction()
+    }
+
+    @Test
+    fun `confirmation dialog cancel button dispatches delete cancelled`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+                pendingDeleteId = "expense-1",
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithText("Cancel").performClick()
+
+        assertEquals(listOf(TransactionUiEvent.DeleteCancelled), events)
+    }
+
+    @Test
+    fun `confirmation dialog delete button dispatches delete confirmed`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+                pendingDeleteId = "expense-1",
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithText("Delete").performClick()
+
+        assertEquals(listOf(TransactionUiEvent.DeleteConfirmed), events)
+    }
+
+    @Test
+    fun `delete button is disabled when transaction is actively deleting`() {
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+                deletingTransactionId = "expense-1",
+            ),
+        )
+
+        composeRule
+            .onNodeWithContentDescription("Delete Food transaction, -£12.50")
+            .assertIsNotEnabled()
     }
 
     @Test
