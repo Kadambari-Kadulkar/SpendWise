@@ -29,6 +29,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -36,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
@@ -68,9 +71,24 @@ fun TransactionListRoute(
     onNavigateToEdit: (String) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(viewModel) {
+        viewModel.effects.collect { effect ->
+            when (effect) {
+                is TransactionUiEffect.Deleted -> {
+                    snackbarHostState.showSnackbar(
+                        message = "Transaction deleted",
+                    )
+                }
+                else -> Unit
+            }
+        }
+    }
 
     TransactionListScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onEvent = { event ->
             when (event) {
                 TransactionUiEvent.StartAdd -> onNavigateToAdd()
@@ -89,15 +107,22 @@ fun TransactionRoute(
     onEffect: (TransactionUiEffect) -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
+            if (effect is TransactionUiEffect.Deleted) {
+                snackbarHostState.showSnackbar(
+                    message = "Transaction deleted",
+                )
+            }
             onEffect(effect)
         }
     }
 
     TransactionListScreen(
         uiState = uiState,
+        snackbarHostState = snackbarHostState,
         onEvent = { event ->
             when (event) {
                 TransactionUiEvent.StartAdd -> onNavigateToAdd()
@@ -114,10 +139,24 @@ fun TransactionListScreen(
     uiState: TransactionUiState,
     onEvent: (TransactionUiEvent) -> Unit,
     modifier: Modifier = Modifier,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
 ) {
+    LaunchedEffect(uiState.deleteError) {
+        val error = uiState.deleteError
+        if (error != null) {
+            snackbarHostState.showSnackbar(
+                message = error.message,
+            )
+            onEvent(TransactionUiEvent.ClearError)
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState)
+        },
         topBar = {
             TopAppBar(
                 title = { Text(TRANSACTIONS_TITLE) },

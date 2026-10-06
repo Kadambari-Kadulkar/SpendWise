@@ -474,6 +474,44 @@ class TransactionViewModelTest {
     }
 
     @Test
+    fun `delete exception exposes operation error without effect`() = runTest {
+        val repository = FakeTransactionRepository().apply {
+            deleteException = IllegalStateException("database")
+        }
+        val viewModel = createViewModel(repository)
+
+        viewModel.onEvent(TransactionUiEvent.DeleteRequested("transaction-1"))
+        viewModel.onEvent(TransactionUiEvent.DeleteConfirmed)
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.deletingTransactionId)
+        assertEquals(TransactionUiErrorKind.OPERATION, viewModel.uiState.value.deleteError?.kind)
+        assertEquals(
+            "Unable to delete the transaction.",
+            viewModel.uiState.value.deleteError?.message,
+        )
+        assertTrue(viewModel.effects.replayCache.isEmpty())
+    }
+
+    @Test
+    fun `clear error resets delete error`() = runTest {
+        val repository = FakeTransactionRepository().apply {
+            deleteResult = false
+        }
+        val viewModel = createViewModel(repository)
+
+        viewModel.onEvent(TransactionUiEvent.DeleteRequested("transaction-1"))
+        viewModel.onEvent(TransactionUiEvent.DeleteConfirmed)
+        advanceUntilIdle()
+
+        assertEquals(TransactionUiErrorKind.NOT_FOUND, viewModel.uiState.value.deleteError?.kind)
+
+        viewModel.onEvent(TransactionUiEvent.ClearError)
+
+        assertNull(viewModel.uiState.value.deleteError)
+    }
+
+    @Test
     fun `duplicate save is ignored while the first save is in progress`() = runTest {
         val repository = FakeTransactionRepository().apply {
             insertStarted = CompletableDeferred()
@@ -563,6 +601,7 @@ class TransactionViewModelTest {
         var insertCalls = 0
             private set
         var insertException: Exception? = null
+        var deleteException: Exception? = null
         var updateResult = true
         var deleteResult = false
         var insertStarted: CompletableDeferred<Unit>? = null
@@ -602,6 +641,7 @@ class TransactionViewModelTest {
             deleteCalls += id
             deleteStarted?.complete(Unit)
             releaseDelete?.await()
+            deleteException?.let { throw it }
             if (deleteResult) {
                 transactions.remove(id)
             }

@@ -1,5 +1,6 @@
 package com.kadambari.spendwise.presentation.transaction
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -18,9 +19,20 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kadambari.spendwise.domain.model.CategoryId
 import com.kadambari.spendwise.domain.model.CurrencyCode
+import com.kadambari.spendwise.domain.model.Transaction
 import com.kadambari.spendwise.domain.model.TransactionType
+import com.kadambari.spendwise.domain.repository.TransactionRepository
+import com.kadambari.spendwise.domain.usecase.AddTransactionUseCase
+import com.kadambari.spendwise.domain.usecase.DeleteTransactionUseCase
+import com.kadambari.spendwise.domain.usecase.GetTransactionUseCase
+import com.kadambari.spendwise.domain.usecase.GetTransactionsUseCase
+import com.kadambari.spendwise.domain.usecase.UpdateTransactionUseCase
 import com.kadambari.spendwise.presentation.designsystem.theme.SpendWiseTheme
+import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -254,19 +266,113 @@ class TransactionListScreenTest {
             .assertIsDisplayed()
     }
 
+    @Test
+    fun `delete error displays stable snackbar message and clears error`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+                deleteError = TransactionUiError(
+                    message = "Unable to delete the transaction.",
+                    kind = TransactionUiErrorKind.OPERATION,
+                ),
+            ),
+            events,
+        )
+
+        composeRule
+            .onNodeWithText("Unable to delete the transaction.")
+            .assertIsDisplayed()
+        assertEquals(listOf(TransactionUiEvent.ClearError), events)
+    }
+
+    @Test
+    fun `delete error does not display raw technical exception`() {
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+                deleteError = TransactionUiError(
+                    message = "Unable to delete the transaction.",
+                    kind = TransactionUiErrorKind.OPERATION,
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithText("SQLiteException", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("RoomDatabase", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `existing transactions remain visible when delete error is present`() {
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                isListLoading = false,
+                deleteError = TransactionUiError(
+                    message = "Unable to delete the transaction.",
+                    kind = TransactionUiErrorKind.OPERATION,
+                ),
+            ),
+        )
+
+        composeRule.onNodeWithText("Food", useUnmergedTree = true).assertIsDisplayed()
+        composeRule
+            .onNodeWithText("Unable to delete the transaction.")
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun `deleted effect handled by route displays transaction deleted snackbar`() {
+        val repository = FakeTransactionRepository()
+        val viewModel = createViewModel(repository)
+
+        composeRule.setContent {
+            SpendWiseTheme {
+                TransactionListRoute(
+                    viewModel = viewModel,
+                    onNavigateToAdd = {},
+                    onNavigateToEdit = {},
+                )
+            }
+        }
+
+        viewModel.onEvent(TransactionUiEvent.DeleteRequested("expense-1"))
+        viewModel.onEvent(TransactionUiEvent.DeleteConfirmed)
+
+        composeRule.onNodeWithText("Transaction deleted").assertIsDisplayed()
+    }
+
     private fun setScreen(
         state: TransactionUiState,
         events: MutableList<TransactionUiEvent> = mutableListOf(),
+        snackbarHostState: SnackbarHostState = SnackbarHostState(),
     ) {
         composeRule.setContent {
             SpendWiseTheme {
                 TransactionListScreen(
                     uiState = state,
                     onEvent = events::add,
+                    snackbarHostState = snackbarHostState,
                 )
             }
         }
     }
+
+    private fun createViewModel(
+        repository: TransactionRepository = FakeTransactionRepository(),
+        clock: Clock = Clock.systemDefaultZone(),
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): TransactionViewModel = TransactionViewModel(
+        getTransactionsUseCase = GetTransactionsUseCase(repository),
+        getTransactionUseCase = GetTransactionUseCase(repository),
+        addTransactionUseCase = AddTransactionUseCase(repository, clock, zoneId),
+        updateTransactionUseCase = UpdateTransactionUseCase(repository, clock, zoneId),
+        deleteTransactionUseCase = DeleteTransactionUseCase(repository),
+        clock = clock,
+        zoneId = zoneId,
+    )
 
     private fun expenseItem(): TransactionListItemUiModel =
         TransactionListItemUiModel(
@@ -291,4 +397,16 @@ class TransactionListScreenTest {
             date = LocalDate.of(2026, 9, 5),
             note = null,
         )
+
+    private class FakeTransactionRepository(
+        private val transactionsFlow: MutableStateFlow<List<Transaction>> = MutableStateFlow(emptyList()),
+    ) : TransactionRepository {
+        var deleteResult: Boolean = true
+
+        override fun observeTransactions(): Flow<List<Transaction>> = transactionsFlow
+        override suspend fun getTransaction(id: String): Transaction? = null
+        override suspend fun insertTransaction(transaction: Transaction) {}
+        override suspend fun updateTransaction(transaction: Transaction): Boolean = true
+        override suspend fun deleteTransaction(id: String): Boolean = deleteResult
+    }
 }
