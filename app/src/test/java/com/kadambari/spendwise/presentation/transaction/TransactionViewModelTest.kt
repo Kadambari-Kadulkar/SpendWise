@@ -679,6 +679,37 @@ class TransactionViewModelTest {
     }
 
     @Test
+    fun `changing type filter coordinates category filter selection`() = runTest {
+        val viewModel = createViewModel(FakeTransactionRepository())
+        advanceUntilIdle()
+
+        // 1. Expense category -> change to Income -> category cleared
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        assertEquals("expense_food", viewModel.uiState.value.filter.categoryId)
+
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.INCOME))
+        assertEquals(TransactionType.INCOME, viewModel.uiState.value.filter.type)
+        assertNull(viewModel.uiState.value.filter.categoryId)
+
+        // 2. Income category -> change to Expense -> category cleared
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("income_salary"))
+        assertEquals("income_salary", viewModel.uiState.value.filter.categoryId)
+
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.EXPENSE))
+        assertEquals(TransactionType.EXPENSE, viewModel.uiState.value.filter.type)
+        assertNull(viewModel.uiState.value.filter.categoryId)
+
+        // 3. Expense category -> change to All -> category retained
+        viewModel.onEvent(TransactionUiEvent.CategoryFilterChanged("expense_food"))
+        assertEquals("expense_food", viewModel.uiState.value.filter.categoryId)
+
+        viewModel.onEvent(TransactionUiEvent.TransactionTypeFilterChanged(null))
+        assertNull(viewModel.uiState.value.filter.type)
+        assertEquals("expense_food", viewModel.uiState.value.filter.categoryId)
+    }
+
+    @Test
     fun `category filter selects specific category or all categories`() = runTest {
         val t1 = customTransaction(id = "1", type = TransactionType.EXPENSE, categoryId = "expense_food")
         val t2 = customTransaction(id = "2", type = TransactionType.EXPENSE, categoryId = "expense_transport")

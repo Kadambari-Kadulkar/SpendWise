@@ -404,7 +404,25 @@ class TransactionViewModel @Inject constructor(
     }
 
     private fun updateTypeFilter(value: TransactionType?) {
-        updateFilter { filter -> filter.copy(type = value) }
+        updateFilter { filter ->
+            val updatedCategoryId = filter.categoryId?.let { rawId ->
+                try {
+                    val categoryId = CategoryId.of(rawId)
+                    val categoryDef = CategoryCatalogue.find(categoryId)
+                    if (categoryDef != null && (value == null || categoryDef.transactionType == value)) {
+                        rawId
+                    } else {
+                        null
+                    }
+                } catch (_: DomainValidationException) {
+                    null
+                }
+            }
+            filter.copy(
+                type = value,
+                categoryId = updatedCategoryId,
+            )
+        }
     }
 
     private fun updateCategoryFilter(value: String?) {

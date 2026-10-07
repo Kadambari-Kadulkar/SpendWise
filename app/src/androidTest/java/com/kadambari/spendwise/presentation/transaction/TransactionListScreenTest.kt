@@ -15,11 +15,14 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.kadambari.spendwise.domain.model.CategoryId
 import com.kadambari.spendwise.domain.model.CurrencyCode
+import com.kadambari.spendwise.domain.model.Money
 import com.kadambari.spendwise.domain.model.Transaction
+import com.kadambari.spendwise.domain.model.TransactionDraft
 import com.kadambari.spendwise.domain.model.TransactionType
 import com.kadambari.spendwise.domain.repository.TransactionRepository
 import com.kadambari.spendwise.domain.usecase.AddTransactionUseCase
@@ -29,11 +32,13 @@ import com.kadambari.spendwise.domain.usecase.GetTransactionsUseCase
 import com.kadambari.spendwise.domain.usecase.UpdateTransactionUseCase
 import com.kadambari.spendwise.presentation.designsystem.theme.SpendWiseTheme
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -73,6 +78,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expense, income),
+                filteredTransactions = listOf(expense, income),
                 isListLoading = false,
             ),
         )
@@ -88,11 +94,269 @@ class TransactionListScreenTest {
     }
 
     @Test
+    fun `search field is displayed when transactions exist and typing text dispatches SearchQueryChanged`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule
+            .onNodeWithContentDescription("Search transactions by category or note")
+            .assertIsDisplayed()
+            .performTextInput("Lunch")
+
+        assertTrue(events.any { it is TransactionUiEvent.SearchQueryChanged && it.value == "Lunch" })
+    }
+
+    @Test
+    fun `search clear button dispatches empty query`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                filter = TransactionFilterUiState(searchQuery = "Coffee"),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule
+            .onNodeWithContentDescription("Clear search")
+            .assertIsDisplayed()
+            .performClick()
+
+        assertEquals(listOf(TransactionUiEvent.SearchQueryChanged("")), events)
+    }
+
+    @Test
+    fun `filter action button is displayed and opens filter bottom sheet`() {
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                isListLoading = false,
+            ),
+        )
+
+        composeRule
+            .onNodeWithContentDescription("Filter transactions")
+            .assertIsDisplayed()
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .performClick()
+
+        composeRule.onNodeWithText("Filter transactions").assertIsDisplayed()
+        composeRule.onNodeWithText("Transaction type").assertIsDisplayed()
+        composeRule.onNodeWithText("Category").assertIsDisplayed()
+        composeRule.onNodeWithText("Date range").assertIsDisplayed()
+    }
+
+    @Test
+    fun `filter action indicates active filters and active banner allows clear all`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                filter = TransactionFilterUiState(type = TransactionType.EXPENSE),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule
+            .onNodeWithContentDescription("Filter transactions, active")
+            .assertIsDisplayed()
+
+        composeRule.onNodeWithText("Filtered results").assertIsDisplayed()
+        composeRule.onNodeWithText("Clear all").performClick()
+
+        assertEquals(listOf(TransactionUiEvent.ClearFilters), events)
+    }
+
+    @Test
+    fun `filter sheet type selection dispatches TransactionTypeFilterChanged`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithContentDescription("Filter transactions").performClick()
+        composeRule.onNodeWithText("Income").performClick()
+
+        assertTrue(events.contains(TransactionUiEvent.TransactionTypeFilterChanged(TransactionType.INCOME)))
+    }
+
+    @Test
+    fun `filter sheet category selection dispatches CategoryFilterChanged`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithContentDescription("Filter transactions").performClick()
+        composeRule
+            .onNodeWithContentDescription("Category filter, currently All categories. Tap to change category.")
+            .performClick()
+        composeRule.onNodeWithText("Food").performClick()
+
+        assertTrue(events.contains(TransactionUiEvent.CategoryFilterChanged("expense_food")))
+    }
+
+    @Test
+    fun `filter sheet date From selector opens and dispatches DateFromChanged`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                maxSelectableDate = LocalDate.of(2026, 9, 5),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithContentDescription("Filter transactions").performClick()
+        composeRule
+            .onNodeWithContentDescription("From date, not set. Tap to select date.")
+            .performClick()
+
+        composeRule.onNodeWithText("OK").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").assertIsDisplayed()
+
+        composeRule.onNodeWithText("4").performClick()
+        composeRule.onNodeWithText("OK").performClick()
+
+        assertTrue(events.any { it is TransactionUiEvent.DateFromChanged && it.value == LocalDate.of(2026, 9, 4) })
+    }
+
+    @Test
+    fun `filter sheet date To selector opens and dispatches DateToChanged`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                maxSelectableDate = LocalDate.of(2026, 9, 5),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithContentDescription("Filter transactions").performClick()
+        composeRule
+            .onNodeWithContentDescription("To date, not set. Tap to select date.")
+            .performClick()
+
+        composeRule.onNodeWithText("OK").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").assertIsDisplayed()
+
+        composeRule.onNodeWithText("3").performClick()
+        composeRule.onNodeWithText("OK").performClick()
+
+        assertTrue(events.any { it is TransactionUiEvent.DateToChanged && it.value == LocalDate.of(2026, 9, 3) })
+    }
+
+    @Test
+    fun `filter sheet clear date buttons have minimum 48dp touch target and dispatch null dates`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                filter = TransactionFilterUiState(
+                    dateFrom = LocalDate.of(2026, 9, 1),
+                    dateTo = LocalDate.of(2026, 9, 5),
+                ),
+                maxSelectableDate = LocalDate.of(2026, 9, 5),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithContentDescription("Filter transactions, active").performClick()
+
+        composeRule
+            .onNodeWithContentDescription("Clear From date")
+            .assertIsDisplayed()
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .performClick()
+
+        assertTrue(events.contains(TransactionUiEvent.DateFromChanged(null)))
+
+        composeRule
+            .onNodeWithContentDescription("Clear To date")
+            .assertIsDisplayed()
+            .assertHeightIsAtLeast(48.dp)
+            .assertWidthIsAtLeast(48.dp)
+            .performClick()
+
+        assertTrue(events.contains(TransactionUiEvent.DateToChanged(null)))
+    }
+
+    @Test
+    fun `filter sheet clear all filters button dispatches ClearFilters`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
+                filter = TransactionFilterUiState(type = TransactionType.EXPENSE),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithContentDescription("Filter transactions, active").performClick()
+        composeRule.onNodeWithText("Clear all filters").performClick()
+
+        assertTrue(events.contains(TransactionUiEvent.ClearFilters))
+    }
+
+    @Test
+    fun `filtered empty state is shown when transactions exist but filtered list is empty`() {
+        val events = mutableListOf<TransactionUiEvent>()
+        setScreen(
+            TransactionUiState(
+                transactions = listOf(expenseItem()),
+                filteredTransactions = emptyList(),
+                filter = TransactionFilterUiState(searchQuery = "Nonexistent"),
+                isListLoading = false,
+            ),
+            events,
+        )
+
+        composeRule.onNodeWithText("No transactions match your filters.").assertIsDisplayed()
+        composeRule.onNodeWithText("Try adjusting your search or clearing filters to see your transactions.").assertIsDisplayed()
+        composeRule.onNodeWithText("Clear filters").performClick()
+
+        assertEquals(listOf(TransactionUiEvent.ClearFilters), events)
+    }
+
+    @Test
     fun `edit action exposes distinct semantics and dispatches edit`() {
         val events = mutableListOf<TransactionUiEvent>()
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
             ),
             events,
@@ -122,6 +386,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
             ),
             events,
@@ -149,6 +414,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 pendingDeleteId = "expense-1",
             ),
@@ -168,6 +434,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 pendingDeleteId = "expense-1",
             ),
@@ -185,6 +452,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 pendingDeleteId = "expense-1",
             ),
@@ -201,6 +469,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 deletingTransactionId = "expense-1",
             ),
@@ -252,6 +521,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 listError = TransactionUiError(
                     message = "technical detail",
@@ -272,6 +542,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 deleteError = TransactionUiError(
                     message = "Unable to delete the transaction.",
@@ -292,6 +563,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 deleteError = TransactionUiError(
                     message = "Unable to delete the transaction.",
@@ -309,6 +581,7 @@ class TransactionListScreenTest {
         setScreen(
             TransactionUiState(
                 transactions = listOf(expenseItem()),
+                filteredTransactions = listOf(expenseItem()),
                 isListLoading = false,
                 deleteError = TransactionUiError(
                     message = "Unable to delete the transaction.",
