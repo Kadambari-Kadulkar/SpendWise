@@ -5,10 +5,12 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -436,6 +438,28 @@ class TransactionFormScreenTest {
         composeRule.onNodeWithText("5 October 2026").assertIsDisplayed()
         composeRule.onNodeWithText("Lunch with team").assertIsDisplayed()
         composeRule.onNodeWithText(errorMessage).assertIsDisplayed()
+    }
+
+    @Test
+    fun formContentIsScrollableAndSaveButtonIsReachable() {
+        val events = mutableListOf<TransactionUiEvent>()
+        val formState = TransactionFormUiState(
+            mode = TransactionFormMode.ADD,
+            amountText = "25.00",
+            categoryId = "expense_food",
+            date = LocalDate.of(2026, 10, 5),
+            noteText = "Scrollable form verification note",
+        )
+        setScreen(
+            mode = TransactionFormMode.ADD,
+            uiState = TransactionUiState(form = formState),
+            events = events,
+        )
+
+        composeRule.onNode(hasScrollAction()).assertIsDisplayed()
+        composeRule.onNodeWithText("Save").performScrollTo().assertIsDisplayed().performClick()
+
+        assertEquals(listOf(TransactionUiEvent.SaveClicked), events)
     }
 
     private fun setScreen(

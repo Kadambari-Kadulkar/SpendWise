@@ -6,16 +6,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -38,14 +42,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -62,12 +69,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.kadambari.spendwise.domain.model.CategoryCatalogue
 import com.kadambari.spendwise.domain.model.CategoryDefinition
 import com.kadambari.spendwise.domain.model.TransactionType
+import com.kadambari.spendwise.presentation.designsystem.components.CategoryIconBadge
 import com.kadambari.spendwise.presentation.designsystem.theme.SpendWiseDimens
 import java.time.Instant
 import java.time.LocalDate
@@ -132,9 +141,15 @@ fun TransactionFormScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                },
                 navigationIcon = {
                     IconButton(
                         modifier = Modifier.size(SpendWiseDimens.minimumTouchTarget),
@@ -143,9 +158,13 @@ fun TransactionFormScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = "Navigate back",
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
             )
         },
     ) { innerPadding ->
@@ -157,6 +176,7 @@ fun TransactionFormScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.semantics {
                         contentDescription = "Loading transaction..."
                     },
@@ -172,10 +192,11 @@ fun TransactionFormScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
+                    .imePadding()
                     .verticalScroll(rememberScrollState())
                     .padding(
                         horizontal = SpendWiseDimens.screenHorizontalPadding,
-                        vertical = SpendWiseDimens.screenVerticalPadding,
+                        vertical = SpendWiseDimens.space12,
                     ),
             )
         }
@@ -196,9 +217,9 @@ private fun TransactionFormContent(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(SpendWiseDimens.sectionSpacing),
+        verticalArrangement = Arrangement.spacedBy(SpendWiseDimens.space16),
     ) {
-        // 1. Amount Field
+        // 1. Hero Amount Input Card
         AmountInputField(
             amountText = formState.amountText,
             amountError = formState.amountError,
@@ -208,27 +229,24 @@ private fun TransactionFormContent(
         // 2. Read-only GBP Currency Display
         CurrencyDisplayField()
 
-        // 3. Income / Expense Selection
+        // 3. Income / Expense Type Selection
         IncomeExpenseSelector(
             selectedType = formState.type,
             onTypeSelected = { onEvent(TransactionUiEvent.TypeChanged(it)) },
         )
 
-        // 4. Category Selector
-        CategorySelectorField(
+        // 4. Details Group Card: Category & Date
+        FormDetailsCard(
             categoryId = formState.categoryId,
             categoryError = formState.categoryError,
-            onClick = { isCategoryPickerOpen = true },
-        )
-
-        // 5. Date Selector
-        DateSelectorField(
+            transactionType = formState.type,
             date = formState.date,
             dateError = formState.dateError,
-            onClick = { isDatePickerOpen = true },
+            onCategoryClick = { isCategoryPickerOpen = true },
+            onDateClick = { isDatePickerOpen = true },
         )
 
-        // 6. Note Field
+        // 5. Note Field
         NoteInputField(
             noteText = formState.noteText,
             noteError = formState.noteError,
@@ -240,7 +258,9 @@ private fun TransactionFormContent(
             FormErrorBanner(message = formError.message)
         }
 
-        // 7. Save Action
+        Spacer(modifier = Modifier.height(SpendWiseDimens.space8))
+
+        // 6. Primary Save Action
         SaveButton(
             isSaving = isSaving,
             onClick = { onEvent(TransactionUiEvent.SaveClicked) },
@@ -285,20 +305,35 @@ private fun AmountInputField(
         modifier = modifier.fillMaxWidth(),
         label = { Text("Amount") },
         placeholder = { Text("0.00") },
-        prefix = { Text("£") },
+        prefix = {
+            Text(
+                text = "£",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        },
+        textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
         singleLine = true,
+        shape = RoundedCornerShape(16.dp),
         isError = amountError != null,
         supportingText = amountError?.let { error ->
             {
                 Text(
                     text = error,
                     color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
                 )
             }
         },
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Decimal,
             imeAction = ImeAction.Next,
+        ),
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
         ),
     )
 }
@@ -307,24 +342,33 @@ private fun AmountInputField(
 private fun CurrencyDisplayField(
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    Surface(
         modifier = modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) {
                 contentDescription = "Currency: British Pound (GBP), read-only"
             },
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
     ) {
-        Text(
-            text = "Currency",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.height(SpendWiseDimens.space4))
-        Text(
-            text = "GBP · British Pound",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Currency",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = "GBP · British Pound",
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
     }
 }
 
@@ -364,7 +408,12 @@ private fun IncomeExpenseSelector(
                         )
                     }
                 },
-                label = { Text("Expense") },
+                label = {
+                    Text(
+                        text = "Expense",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                    )
+                },
             )
 
             SegmentedButton(
@@ -380,17 +429,26 @@ private fun IncomeExpenseSelector(
                         )
                     }
                 },
-                label = { Text("Income") },
+                label = {
+                    Text(
+                        text = "Income",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                    )
+                },
             )
         }
     }
 }
 
 @Composable
-private fun CategorySelectorField(
+private fun FormDetailsCard(
     categoryId: String?,
     categoryError: String?,
-    onClick: () -> Unit,
+    transactionType: TransactionType,
+    date: LocalDate?,
+    dateError: String?,
+    onCategoryClick: () -> Unit,
+    onDateClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val selectedCategory: CategoryDefinition? = remember(categoryId) {
@@ -403,80 +461,176 @@ private fun CategorySelectorField(
 
     val displayCategoryName = selectedCategory?.displayName ?: "Select category"
     val isCategorySelected = selectedCategory != null
-    val accessibilityDescription = if (isCategorySelected) {
+    val categoryAccessibilityDescription = if (isCategorySelected) {
         "Category, $displayCategoryName. Tap to change category."
     } else {
         "Category, not selected. Tap to select category."
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Category",
-            style = MaterialTheme.typography.labelMedium,
-            color = if (categoryError != null) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.padding(bottom = SpendWiseDimens.space4),
+    val formattedDate = remember(date) {
+        date?.format(
+            DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
+                .withLocale(Locale.UK),
         )
+    }
+    val displayDate = formattedDate ?: "Select date"
+    val isDateSelected = date != null
+    val dateAccessibilityDescription = if (isDateSelected) {
+        "Transaction date, $displayDate. Tap to change date."
+    } else {
+        "Transaction date, not selected. Tap to select date."
+    }
 
+    Column(modifier = modifier.fillMaxWidth()) {
         OutlinedCard(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = SpendWiseDimens.minimumTouchTarget)
-                .semantics {
-                    role = Role.Button
-                    contentDescription = accessibilityDescription
-                },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.outlinedCardColors(
                 containerColor = MaterialTheme.colorScheme.surface,
             ),
-            border = if (categoryError != null) {
-                CardDefaults.outlinedCardBorder().copy(
-                    brush = SolidColor(MaterialTheme.colorScheme.error),
-                )
-            } else {
-                CardDefaults.outlinedCardBorder()
-            },
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = SpendWiseDimens.screenHorizontalPadding,
-                        vertical = SpendWiseDimens.listItemVerticalPadding,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = displayCategoryName,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (isCategorySelected) {
-                        MaterialTheme.colorScheme.onSurface
+            border = CardDefaults.outlinedCardBorder().copy(
+                brush = SolidColor(
+                    if (categoryError != null || dateError != null) {
+                        MaterialTheme.colorScheme.error
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
                     },
+                ),
+            ),
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Category Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = SpendWiseDimens.minimumTouchTarget)
+                        .clickable(onClick = onCategoryClick)
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = categoryAccessibilityDescription
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        CategoryIconBadge(
+                            categoryId = categoryId,
+                            transactionType = transactionType,
+                            size = 36.dp,
+                            iconSize = 18.dp,
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Category",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (categoryError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = displayCategoryName,
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                                color = if (isCategorySelected) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Outlined.ArrowDropDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(start = 64.dp, end = 16.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
                 )
-                Icon(
-                    imageVector = Icons.Outlined.ArrowDropDown,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+
+                // Date Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = SpendWiseDimens.minimumTouchTarget)
+                        .clickable(onClick = onDateClick)
+                        .semantics {
+                            role = Role.Button
+                            contentDescription = dateAccessibilityDescription
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CalendarToday,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Date",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (dateError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = displayDate,
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                                color = if (isDateSelected) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Outlined.ArrowDropDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
-        categoryError?.let { error ->
+        if (categoryError != null) {
             Text(
-                text = error,
+                text = categoryError,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(
-                    start = SpendWiseDimens.screenHorizontalPadding,
-                    top = SpendWiseDimens.space4,
-                ),
+                modifier = Modifier.padding(start = 16.dp, top = SpendWiseDimens.space4),
+            )
+        }
+
+        if (dateError != null) {
+            Text(
+                text = dateError,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 16.dp, top = SpendWiseDimens.space4),
             )
         }
     }
@@ -498,6 +652,7 @@ private fun CategoryPickerBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
     ) {
         Column(
             modifier = Modifier
@@ -506,11 +661,11 @@ private fun CategoryPickerBottomSheet(
         ) {
             Text(
                 text = "Select category",
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(
                     horizontal = SpendWiseDimens.screenHorizontalPadding,
-                    vertical = SpendWiseDimens.space8,
+                    vertical = SpendWiseDimens.space12,
                 ),
             )
 
@@ -541,11 +696,20 @@ private fun CategoryPickerBottomSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(
-                            text = category.displayName,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CategoryIconBadge(
+                                categoryId = category.id.value,
+                                transactionType = category.transactionType,
+                                size = 36.dp,
+                                iconSize = 18.dp,
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = category.displayName,
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
 
                         if (isSelected) {
                             Icon(
@@ -556,104 +720,12 @@ private fun CategoryPickerBottomSheet(
                         }
                     }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 64.dp, end = 16.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun DateSelectorField(
-    date: LocalDate?,
-    dateError: String?,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val formattedDate = remember(date) {
-        date?.format(
-            DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG)
-                .withLocale(Locale.UK),
-        )
-    }
-
-    val displayDate = formattedDate ?: "Select date"
-    val isDateSelected = date != null
-    val accessibilityDescription = if (isDateSelected) {
-        "Transaction date, $displayDate. Tap to change date."
-    } else {
-        "Transaction date, not selected. Tap to select date."
-    }
-
-    Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Date",
-            style = MaterialTheme.typography.labelMedium,
-            color = if (dateError != null) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            },
-            modifier = Modifier.padding(bottom = SpendWiseDimens.space4),
-        )
-
-        OutlinedCard(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = SpendWiseDimens.minimumTouchTarget)
-                .semantics {
-                    role = Role.Button
-                    contentDescription = accessibilityDescription
-                },
-            colors = CardDefaults.outlinedCardColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-            ),
-            border = if (dateError != null) {
-                CardDefaults.outlinedCardBorder().copy(
-                    brush = SolidColor(MaterialTheme.colorScheme.error),
-                )
-            } else {
-                CardDefaults.outlinedCardBorder()
-            },
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = SpendWiseDimens.screenHorizontalPadding,
-                        vertical = SpendWiseDimens.listItemVerticalPadding,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    text = displayDate,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (isDateSelected) {
-                        MaterialTheme.colorScheme.onSurface
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
-                Icon(
-                    imageVector = Icons.Outlined.CalendarToday,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-
-        dateError?.let { error ->
-            Text(
-                text = error,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(
-                    start = SpendWiseDimens.screenHorizontalPadding,
-                    top = SpendWiseDimens.space4,
-                ),
-            )
         }
     }
 }
@@ -729,6 +801,7 @@ private fun NoteInputField(
         placeholder = { Text("Enter a note...") },
         minLines = 2,
         maxLines = 4,
+        shape = RoundedCornerShape(16.dp),
         isError = noteError != null,
         supportingText = {
             Row(
@@ -755,6 +828,12 @@ private fun NoteInputField(
             keyboardType = KeyboardType.Text,
             imeAction = ImeAction.Done,
         ),
+        colors = OutlinedTextFieldDefaults.colors(
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+        ),
     )
 }
 
@@ -765,6 +844,7 @@ private fun FormErrorBanner(
 ) {
     OutlinedCard(
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.outlinedCardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
         ),
@@ -793,6 +873,7 @@ private fun SaveButton(
     Button(
         onClick = onClick,
         enabled = !isSaving,
+        shape = RoundedCornerShape(14.dp),
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = SpendWiseDimens.minimumTouchTarget),
@@ -806,12 +887,12 @@ private fun SaveButton(
             Spacer(modifier = Modifier.size(SpendWiseDimens.space8))
             Text(
                 text = "Saving…",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
             )
         } else {
             Text(
                 text = "Save",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
             )
         }
     }

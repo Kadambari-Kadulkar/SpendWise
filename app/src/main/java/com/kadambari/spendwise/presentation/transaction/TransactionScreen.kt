@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
@@ -46,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -56,6 +59,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -68,16 +72,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.kadambari.spendwise.domain.model.CategoryCatalogue
 import com.kadambari.spendwise.domain.model.CategoryId
 import com.kadambari.spendwise.domain.model.TransactionType
+import com.kadambari.spendwise.presentation.designsystem.components.CategoryIconBadge
 import com.kadambari.spendwise.presentation.designsystem.theme.SpendWiseDimens
 import java.time.Instant
 import java.time.LocalDate
@@ -193,7 +200,12 @@ fun TransactionListScreen(
         },
         topBar = {
             TopAppBar(
-                title = { Text(TRANSACTIONS_TITLE) },
+                title = {
+                    Text(
+                        text = TRANSACTIONS_TITLE,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                    )
+                },
                 actions = {
                     IconButton(
                         modifier = Modifier.size(SpendWiseDimens.minimumTouchTarget),
@@ -202,9 +214,13 @@ fun TransactionListScreen(
                         Icon(
                             imageVector = Icons.Outlined.Add,
                             contentDescription = ADD_TRANSACTION_LABEL,
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
             )
         },
     ) { innerPadding ->
@@ -277,7 +293,7 @@ private fun TransactionListContent(
                         Text(
                             text = "Filtered results",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.primary,
                         )
                         TextButton(
                             onClick = { onEvent(TransactionUiEvent.ClearFilters) },
@@ -301,7 +317,10 @@ private fun TransactionListContent(
                                 contentDescription = LOADING_TRANSACTIONS_LABEL
                             },
                     ) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
+                        )
                     }
                 }
 
@@ -311,26 +330,40 @@ private fun TransactionListContent(
                         onClearFilters = { onEvent(TransactionUiEvent.ClearFilters) },
                     )
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(
-                            vertical = SpendWiseDimens.space8,
+                    OutlinedCard(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(
+                                horizontal = SpendWiseDimens.screenHorizontalPadding,
+                                vertical = SpendWiseDimens.space8,
+                            ),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.outlinedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                        border = CardDefaults.outlinedCardBorder().copy(
+                            brush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)),
                         ),
                     ) {
-                        items(
-                            items = uiState.filteredTransactions,
-                            key = { transaction -> transaction.id },
-                        ) { transaction ->
-                            TransactionListItem(
-                                transaction = transaction,
-                                isDeleting = uiState.deletingTransactionId == transaction.id,
-                                onEdit = {
-                                    onEvent(TransactionUiEvent.StartEdit(transaction.id))
-                                },
-                                onDelete = {
-                                    onEvent(TransactionUiEvent.DeleteRequested(transaction.id))
-                                },
-                            )
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(vertical = SpendWiseDimens.space4),
+                        ) {
+                            items(
+                                items = uiState.filteredTransactions,
+                                key = { transaction -> transaction.id },
+                            ) { transaction ->
+                                TransactionListItem(
+                                    transaction = transaction,
+                                    isDeleting = uiState.deletingTransactionId == transaction.id,
+                                    onEdit = {
+                                        onEvent(TransactionUiEvent.StartEdit(transaction.id))
+                                    },
+                                    onDelete = {
+                                        onEvent(TransactionUiEvent.DeleteRequested(transaction.id))
+                                    },
+                                )
+                            }
                         }
                     }
                 }
@@ -378,6 +411,7 @@ private fun TransactionSearchBarAndFilter(
                 Icon(
                     imageVector = Icons.Outlined.Search,
                     contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             },
             trailingIcon = {
@@ -393,6 +427,13 @@ private fun TransactionSearchBarAndFilter(
                     }
                 }
             },
+            shape = RoundedCornerShape(24.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+            ),
             singleLine = true,
         )
 
@@ -426,6 +467,7 @@ private fun TransactionSearchBarAndFilter(
                     modifier = Modifier
                         .padding(top = SpendWiseDimens.space4, end = SpendWiseDimens.space4)
                         .size(SpendWiseDimens.space8),
+                    containerColor = MaterialTheme.colorScheme.primary,
                 )
             }
         }
@@ -466,7 +508,7 @@ private fun TransactionFilterBottomSheet(
             ) {
                 Text(
                     text = "Filter transactions",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
                 )
 
@@ -491,7 +533,7 @@ private fun TransactionFilterBottomSheet(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "Date range",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = SpendWiseDimens.space8),
                 )
@@ -526,6 +568,7 @@ private fun TransactionFilterBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = SpendWiseDimens.minimumTouchTarget),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -662,6 +705,7 @@ private fun FilterCategorySelector(
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 },
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
@@ -744,6 +788,7 @@ private fun FilterDateField(
 
         OutlinedCard(
             onClick = onClick,
+            shape = RoundedCornerShape(12.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = SpendWiseDimens.minimumTouchTarget)
@@ -908,6 +953,17 @@ fun TransactionListItem(
                 ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Category Icon Badge
+            CategoryIconBadge(
+                categoryId = transaction.categoryId,
+                transactionType = transaction.type,
+                size = 40.dp,
+                iconSize = 20.dp,
+            )
+
+            Spacer(modifier = Modifier.width(SpendWiseDimens.space12))
+
+            // Transaction Detail & Edit Area
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -931,7 +987,7 @@ fun TransactionListItem(
                     ) {
                         Text(
                             text = transaction.categoryLabel,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface,
                         )
                         transaction.note?.takeIf { it.isNotBlank() }?.let { note ->
@@ -947,7 +1003,7 @@ fun TransactionListItem(
                     Text(
                         text = amountText,
                         modifier = Modifier.weight(0.5f),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.End,
                     )
@@ -978,7 +1034,10 @@ fun TransactionListItem(
             }
         }
 
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider(
+            modifier = Modifier.padding(start = 68.dp, end = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+        )
     }
 }
 
@@ -989,13 +1048,22 @@ private fun TransactionDeleteConfirmationDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Delete transaction?") },
+        title = {
+            Text(
+                text = "Delete transaction?",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+            )
+        },
         text = {
-            Text("Are you sure you want to delete this transaction? This action cannot be undone.")
+            Text(
+                text = "Are you sure you want to delete this transaction? This action cannot be undone.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         },
         confirmButton = {
             Button(
                 onClick = onConfirm,
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.error,
                     contentColor = MaterialTheme.colorScheme.onError,
@@ -1005,7 +1073,10 @@ private fun TransactionDeleteConfirmationDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.heightIn(min = SpendWiseDimens.minimumTouchTarget),
+            ) {
                 Text("Cancel")
             }
         },
@@ -1023,7 +1094,7 @@ private fun TransactionLoadingState(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        CircularProgressIndicator()
+        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.height(SpendWiseDimens.space16))
         Text(
             text = LOADING_TRANSACTIONS_LABEL,
@@ -1045,7 +1116,7 @@ private fun TransactionEmptyState(
     ) {
         Text(
             text = EMPTY_TITLE,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
@@ -1057,7 +1128,11 @@ private fun TransactionEmptyState(
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(SpendWiseDimens.space24))
-        Button(onClick = onAddTransaction) {
+        Button(
+            onClick = onAddTransaction,
+            modifier = Modifier.heightIn(min = SpendWiseDimens.minimumTouchTarget),
+            shape = RoundedCornerShape(12.dp),
+        ) {
             Text(ADD_TRANSACTION_LABEL)
         }
     }
@@ -1075,7 +1150,7 @@ private fun TransactionFilteredEmptyState(
     ) {
         Text(
             text = FILTERED_EMPTY_TITLE,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
@@ -1087,7 +1162,11 @@ private fun TransactionFilteredEmptyState(
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(SpendWiseDimens.space24))
-        Button(onClick = onClearFilters) {
+        Button(
+            onClick = onClearFilters,
+            modifier = Modifier.heightIn(min = SpendWiseDimens.minimumTouchTarget),
+            shape = RoundedCornerShape(12.dp),
+        ) {
             Text("Clear filters")
         }
     }
@@ -1105,7 +1184,7 @@ private fun TransactionListErrorState(
     ) {
         Text(
             text = LIST_ERROR_TITLE,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
@@ -1117,7 +1196,11 @@ private fun TransactionListErrorState(
             textAlign = TextAlign.Center,
         )
         Spacer(modifier = Modifier.height(SpendWiseDimens.space24))
-        Button(onClick = onRetry) {
+        Button(
+            onClick = onRetry,
+            modifier = Modifier.heightIn(min = SpendWiseDimens.minimumTouchTarget),
+            shape = RoundedCornerShape(12.dp),
+        ) {
             Text("Retry")
         }
     }
@@ -1133,7 +1216,7 @@ private fun TransactionInlineListError(onRetry: () -> Unit) {
     ) {
         Text(
             text = LIST_ERROR_TITLE,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
@@ -1142,7 +1225,10 @@ private fun TransactionInlineListError(onRetry: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.height(SpendWiseDimens.space8))
-        Button(onClick = onRetry) {
+        Button(
+            onClick = onRetry,
+            shape = RoundedCornerShape(12.dp),
+        ) {
             Text("Retry")
         }
     }

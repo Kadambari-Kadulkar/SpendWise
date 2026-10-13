@@ -37,7 +37,14 @@ val Error = Color(0xFFD32F2F)
 // Financial colours
 val Income = Color(0xFF2E7D32)
 val Expense = Color(0xFFC62828)
+val IncomeContainer = Color(0xFFE8F5E9)
+val ExpenseContainer = Color(0xFFFFEBEE)
 
 // Dark-theme base colours
 val DarkBackground = Color(0xFF121212)
 val DarkSurface = Color(0xFF1E1E1E)
+val DarkSurfaceVariant = Color(0xFF282828)
+val DarkIncome = Color(0xFF81C784)
+val DarkExpense = Color(0xFFE57373)
+val DarkIncomeContainer = Color(0xFF1B3820)
+val DarkExpenseContainer = Color(0xFF3E1F21)

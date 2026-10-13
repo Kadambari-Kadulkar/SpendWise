@@ -21,6 +21,7 @@ private val LightColorScheme = lightColorScheme(
     onSurface = PrimaryText,
     surfaceVariant = SecondaryBlueContainer,
     onSurfaceVariant = DarkGray,
+    surfaceContainer = Surface,
     outline = LightGray,
     outlineVariant = LightGray,
     error = Error,
@@ -42,6 +43,7 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = White,
     surfaceVariant = SecondaryBlue,
     onSurfaceVariant = LightGray,
+    surfaceContainer = DarkSurface,
     outline = DarkGray,
     outlineVariant = DarkGray,
     error = Error,
@@ -61,4 +63,25 @@ fun SpendWiseTheme(
         shapes = SpendWiseShapes,
         content = content
     )
+}
+
+/**
+ * Convenience accessors for semantic financial colours adapting to system theme.
+ */
+object SpendWiseColors {
+    @Composable
+    fun income(): androidx.compose.ui.graphics.Color =
+        if (isSystemInDarkTheme()) DarkIncome else Income
+
+    @Composable
+    fun expense(): androidx.compose.ui.graphics.Color =
+        if (isSystemInDarkTheme()) DarkExpense else Expense
+
+    @Composable
+    fun incomeContainer(): androidx.compose.ui.graphics.Color =
+        if (isSystemInDarkTheme()) DarkIncomeContainer else IncomeContainer
+
+    @Composable
+    fun expenseContainer(): androidx.compose.ui.graphics.Color =
+        if (isSystemInDarkTheme()) DarkExpenseContainer else ExpenseContainer
 }

@@ -8,12 +8,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.remember
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
+import com.kadambari.spendwise.presentation.dashboard.DashboardRoute
 import com.kadambari.spendwise.presentation.transaction.TransactionFormMode
 import com.kadambari.spendwise.presentation.transaction.TransactionFormRoute
 import com.kadambari.spendwise.presentation.transaction.TransactionListRoute
@@ -30,7 +32,23 @@ fun SpendWiseNavHost(
         modifier = modifier
     ) {
         composable(Screen.Dashboard.route) {
-            DashboardScreen()
+            DashboardRoute(
+                onNavigateToAdd = {
+                    navController.navigate(Screen.TransactionAdd.route)
+                },
+                onNavigateToTransactions = {
+                    navController.navigate(Screen.Transactions.route) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                onNavigateToEdit = { transactionId ->
+                    navController.navigate(Screen.TransactionEdit.createRoute(transactionId))
+                }
+            )
         }
         navigation(
             route = Screen.Transactions.route,
@@ -100,12 +118,6 @@ fun SpendWiseNavHost(
     }
 }
 
-@Composable
-fun DashboardScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Dashboard")
-    }
-}
 
 @Composable
 fun AnalyticsScreen() {
