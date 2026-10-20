@@ -15,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.navArgument
+import com.kadambari.spendwise.presentation.analytics.AnalyticsRoute
 import com.kadambari.spendwise.presentation.dashboard.DashboardRoute
 import com.kadambari.spendwise.presentation.transaction.TransactionFormMode
 import com.kadambari.spendwise.presentation.transaction.TransactionFormRoute
@@ -107,7 +108,11 @@ fun SpendWiseNavHost(
             }
         }
         composable(Screen.Analytics.route) {
-            AnalyticsScreen()
+            AnalyticsRoute(
+                onNavigateToAdd = {
+                    navController.navigate(Screen.TransactionAdd.route)
+                }
+            )
         }
         composable(Screen.Budget.route) {
             BudgetScreen()
@@ -115,14 +120,6 @@ fun SpendWiseNavHost(
         composable(Screen.Settings.route) {
             SettingsScreen()
         }
-    }
-}
-
-
-@Composable
-fun AnalyticsScreen() {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Analytics")
     }
 }
 
