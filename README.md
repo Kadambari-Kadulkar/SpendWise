@@ -2,7 +2,7 @@
 
 SpendWise is a portfolio-quality personal finance Android application engineered to demonstrate modern Android, Kotlin, software architecture, accessibility, testing, and production-quality mobile engineering practices.
 
-Inspired by the clean, minimal, and dependable user experience of modern UK banking and digital public services, SpendWise prioritises clarity, robust financial data handling, offline-first reliability, and WCAG-aligned accessibility over flashy fintech aesthetics.
+Inspired by the clean, minimal, and dependable user experience of modern banking and digital public services, SpendWise prioritises clarity, robust financial data handling, offline-first reliability, and WCAG-aligned accessibility over flashy fintech aesthetics.
 
 ---
 
