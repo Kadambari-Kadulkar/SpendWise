@@ -62,11 +62,6 @@ SpendWise is developed incrementally in disciplined phases. The project distingu
 - **Analytics**: Financial charts, spending trends, category breakdowns, and monthly comparison metrics.
 - **Budget**: Monthly spending limits, category budgets, and budget progress indicators.
 - **Settings**: Currency preferences, export/import, and accessibility toggles.
-- **Receipt Scanning / OCR**: On-device optical character recognition to extract receipt details for user verification.
-- **Recurring Payment Reminders**: Reminder-based notifications for upcoming bills without requiring direct banking credentials.
-- **Backend Service**: Future backend using Spring Boot, PostgreSQL, JWT authentication, Docker, and REST APIs, paired with Android Retrofit/OkHttp synchronization.
-- **Multi-Currency Support & Custom Categories**: Runtime currency selection and user-defined category creation.
-
 ---
 
 ## Tech Stack & Architecture
